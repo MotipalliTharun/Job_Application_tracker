@@ -3,4 +3,5 @@ data
 *.log
 .env.local
 .DS_Store
-
+server/node_modules
+client/node_modules

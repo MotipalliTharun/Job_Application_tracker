@@ -12,7 +12,7 @@ import { Application, ApplicationStatus } from './types';
 const API_BASE = import.meta.env.VITE_API_URL || '/api/applications';
 
 function App() {
-  const [applications, setApplications] = useState<Application[]>([]);
+  const [_applications, setApplications] = useState<Application[]>([]);
   const [filteredApplications, setFilteredApplications] = useState<Application[]>([]);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
@@ -41,7 +41,7 @@ function App() {
       }
       
       const data = await response.json();
-      setApplications(data);
+      setApplications(data); // Store full list for stats and future use
       setFilteredApplications(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
