@@ -4,11 +4,6 @@
   "outputDirectory": "client/dist",
   "installCommand": "npm install && npm run install:all",
   "framework": null,
-  "functions": {
-    "api/applications.ts": {
-      "runtime": "@vercel/node"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
