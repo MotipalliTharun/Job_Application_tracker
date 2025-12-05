@@ -61,7 +61,8 @@ async function getExcelFileBuffer(): Promise<Buffer | null> {
           if (blob && blob.url) {
             const response = await fetch(blob.url);
             const arrayBuffer = await response.arrayBuffer();
-            return Buffer.from(arrayBuffer) as Buffer;
+            // Convert ArrayBuffer to proper Node.js Buffer
+            return Buffer.from(new Uint8Array(arrayBuffer));
           }
         }
       } catch (error: any) {
@@ -137,7 +138,9 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
       }
     } else {
       try {
-        await workbook.xlsx.load(fileBuffer);
+        // Ensure fileBuffer is a proper Buffer for ExcelJS
+        const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer as ArrayBuffer);
+        await workbook.xlsx.load(buffer);
       } catch (error) {
         // If file is corrupted, backup it and create a new one
         console.warn('Excel file is corrupted. Backing up and creating new file.', error);
@@ -356,8 +359,11 @@ export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promis
   try {
     // Validate the uploaded file by trying to read it
     const tempWorkbook = new ExcelJS.Workbook();
-    const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
-    await tempWorkbook.xlsx.load(buffer);
+    // Convert to proper Buffer type for ExcelJS
+    const buffer: Buffer = Buffer.isBuffer(fileBuffer) 
+      ? fileBuffer 
+      : Buffer.from(fileBuffer as ArrayBuffer);
+    await tempWorkbook.xlsx.load(buffer as any);
     
     const worksheet = tempWorkbook.getWorksheet(SHEET_NAME);
     if (!worksheet) {
@@ -371,8 +377,11 @@ export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promis
       console.log(`Current file backed up to: ${backupPath}`);
     }
     
-    // Save the uploaded file
-    await saveExcelFileBuffer(fileBuffer);
+    // Save the uploaded file (convert to Buffer if needed)
+    const saveBuffer: Buffer = Buffer.isBuffer(fileBuffer) 
+      ? fileBuffer 
+      : Buffer.from(fileBuffer as ArrayBuffer);
+    await saveExcelFileBuffer(saveBuffer);
     const storageType = isVercel ? 'Vercel Blob' : 'local file';
     console.log(`Excel file restored from upload to ${storageType}`);
     
