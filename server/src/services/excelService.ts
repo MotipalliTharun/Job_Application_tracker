@@ -139,8 +139,11 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
     } else {
       try {
         // Ensure fileBuffer is a proper Buffer for ExcelJS
-        const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer as ArrayBuffer);
-        await workbook.xlsx.load(buffer);
+        // ExcelJS expects a Node.js Buffer, so we need to ensure proper type
+        const buffer: Buffer = Buffer.isBuffer(fileBuffer) 
+          ? fileBuffer 
+          : Buffer.from(new Uint8Array(fileBuffer as ArrayBuffer));
+        await workbook.xlsx.load(buffer as any);
       } catch (error) {
         // If file is corrupted, backup it and create a new one
         console.warn('Excel file is corrupted. Backing up and creating new file.', error);
