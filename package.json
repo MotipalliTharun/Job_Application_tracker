@@ -1,0 +1,16 @@
+{
+  "name": "link-ats-tracker",
+  "version": "1.0.0",
+  "description": "Link ATS Tracker - Job application tracking system",
+  "scripts": {
+    "install:all": "npm install --prefix client && npm install --prefix server",
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.5.15",
+    "concurrently": "^8.2.2"
+  },
+  "private": true
+}
