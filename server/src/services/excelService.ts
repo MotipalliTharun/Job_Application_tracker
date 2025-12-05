@@ -61,7 +61,7 @@ async function getExcelFileBuffer(): Promise<Buffer | null> {
           if (blob && blob.url) {
             const response = await fetch(blob.url);
             const arrayBuffer = await response.arrayBuffer();
-            return Buffer.from(arrayBuffer);
+            return Buffer.from(arrayBuffer) as Buffer;
           }
         }
       } catch (error: any) {
@@ -182,7 +182,8 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
           fgColor: { argb: 'FFE0E0E0' }
         };
         // Save the new file immediately
-        const newBuffer = Buffer.from(await newWorkbook.xlsx.writeBuffer());
+        const writeBuffer = await newWorkbook.xlsx.writeBuffer();
+        const newBuffer = Buffer.isBuffer(writeBuffer) ? writeBuffer : Buffer.from(writeBuffer);
         await saveExcelFileBuffer(newBuffer);
         return newWorkbook;
       }
@@ -335,7 +336,8 @@ export async function saveApplications(applications: Application[]): Promise<voi
     });
     
     // Save to buffer and then to storage
-    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    const writeBuffer = await workbook.xlsx.writeBuffer();
+    const buffer = Buffer.isBuffer(writeBuffer) ? writeBuffer : Buffer.from(writeBuffer);
     await saveExcelFileBuffer(buffer);
     
     const storageType = isVercel ? 'Vercel Blob' : 'local file';
@@ -350,11 +352,12 @@ export async function saveApplications(applications: Application[]): Promise<voi
  * Restore Excel file from uploaded file buffer
  * Validates the file and replaces the current Excel file
  */
-export async function restoreExcelFile(fileBuffer: Buffer): Promise<Application[]> {
+export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promise<Application[]> {
   try {
     // Validate the uploaded file by trying to read it
     const tempWorkbook = new ExcelJS.Workbook();
-    await tempWorkbook.xlsx.load(fileBuffer);
+    const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
+    await tempWorkbook.xlsx.load(buffer);
     
     const worksheet = tempWorkbook.getWorksheet(SHEET_NAME);
     if (!worksheet) {
