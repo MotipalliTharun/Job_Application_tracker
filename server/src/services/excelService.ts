@@ -14,12 +14,19 @@ async function getBlobStorage() {
     return null;
   }
   
+  // Check if token is available
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    console.warn('BLOB_READ_WRITE_TOKEN not set in environment variables');
+    return null;
+  }
+  
   try {
     // Dynamic import only when on Vercel
     const blobModule = await import('@vercel/blob');
+    console.log('Vercel Blob module loaded successfully');
     return blobModule;
   } catch (error) {
-    console.warn('Vercel Blob not available (this is normal for local dev):', error);
+    console.error('Failed to import Vercel Blob:', error);
     return null;
   }
 }
@@ -230,10 +237,12 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
 
 export async function loadApplications(): Promise<Application[]> {
   try {
+    console.log('Loading applications...', { isVercel, hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN });
     const workbook = await ensureWorkbook();
     const worksheet = workbook.getWorksheet(SHEET_NAME);
     
     if (!worksheet) {
+      console.log('No worksheet found, returning empty array');
       return [];
     }
     
@@ -241,9 +250,11 @@ export async function loadApplications(): Promise<Application[]> {
     const rows = worksheet.getRows(2, worksheet.rowCount - 1); // Skip header row
     
     if (!rows) {
+      console.log('No rows found, returning empty array');
       return [];
     }
     
+    console.log(`Found ${rows.length} rows to process`);
     for (const row of rows) {
       if (!row.getCell(1).value) continue; // Skip empty rows
       
@@ -272,10 +283,17 @@ export async function loadApplications(): Promise<Application[]> {
       });
     }
     
+    console.log(`Successfully loaded ${applications.length} applications`);
     return applications;
   } catch (error) {
     console.error('Error loading applications:', error);
-    throw new Error('Failed to load applications from Excel');
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN
+    });
+    throw new Error(`Failed to load applications from Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
