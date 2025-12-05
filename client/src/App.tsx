@@ -37,7 +37,17 @@ function App() {
       const response = await fetch(url);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch applications');
+        const text = await response.text();
+        console.error('API Error Response:', text);
+        throw new Error(`Failed to fetch applications: ${response.status} ${response.statusText}`);
+      }
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response. Check API endpoint.');
       }
       
       const data = await response.json();

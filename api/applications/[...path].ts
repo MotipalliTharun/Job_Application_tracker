@@ -240,27 +240,60 @@ app.use(express.raw({ type: 'application/vnd.openxmlformats-officedocument.sprea
 // Mount router at root - Vercel routes /api/applications/* to this function
 app.use('/', router);
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel catch-all: path segments are in req.query.path as array
-  const pathSegments = (req.query.path as string[]) || [];
-  const path = pathSegments.length > 0 ? '/' + pathSegments.join('/') : '/';
-  
-  // Reconstruct the URL for Express router
-  const originalUrl = req.url || '/';
-  const queryString = originalUrl.includes('?') ? originalUrl.substring(originalUrl.indexOf('?')) : '';
-  req.url = path + queryString;
-  
-  // Log the incoming request for debugging
-  console.log('API Request:', {
-    method: req.method,
-    originalUrl: originalUrl,
-    reconstructedUrl: req.url,
-    pathSegments: pathSegments,
-    path: path,
-    query: req.query
+// 404 handler for unmatched routes
+app.use((req, res) => {
+  console.error('404 - Route not found:', req.method, req.url);
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.url} not found`,
+    availableRoutes: [
+      'GET /',
+      'POST /links',
+      'PATCH /:id',
+      'DELETE /:id',
+      'DELETE /:id/hard',
+      'DELETE /:id/clear-link',
+      'GET /stats',
+      'GET /excel-path',
+      'POST /restore'
+    ]
   });
-  
-  // Handle the request with Express
-  return app(req, res);
+});
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    // Vercel catch-all: path segments are in req.query.path as array
+    // For /api/applications, pathSegments will be []
+    // For /api/applications/stats, pathSegments will be ['stats']
+    // For /api/applications/123, pathSegments will be ['123']
+    const pathSegments = (req.query.path as string[]) || [];
+    const path = pathSegments.length > 0 ? '/' + pathSegments.join('/') : '/';
+    
+    // Reconstruct the URL for Express router
+    const originalUrl = req.url || '/';
+    const queryString = originalUrl.includes('?') ? originalUrl.substring(originalUrl.indexOf('?')) : '';
+    
+    // Set the URL for Express to match against routes
+    req.url = path + queryString;
+    
+    // Log the incoming request for debugging
+    console.log('API Request:', {
+      method: req.method,
+      originalUrl: originalUrl,
+      reconstructedUrl: req.url,
+      pathSegments: pathSegments,
+      path: path,
+      query: req.query
+    });
+    
+    // Handle the request with Express
+    return app(req, res);
+  } catch (error) {
+    console.error('Handler error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }
 

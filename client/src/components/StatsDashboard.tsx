@@ -23,7 +23,20 @@ export default function StatsDashboard() {
 
   const fetchStats = () => {
     fetch('/api/applications/stats')
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Stats API Error:', text);
+          throw new Error(`Failed to fetch stats: ${res.status}`);
+        }
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text();
+          console.error('Non-JSON stats response:', text.substring(0, 200));
+          throw new Error('Server returned non-JSON response');
+        }
+        return res.json();
+      })
       .then(data => {
         setStats(data);
         setLoading(false);

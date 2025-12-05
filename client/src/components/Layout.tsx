@@ -9,8 +9,24 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     fetch('/api/applications/excel-path')
-      .then(res => res.json())
-      .then(data => setExcelPath(data.path))
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Excel path API Error:', text);
+          return;
+        }
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error('Non-JSON response from excel-path endpoint');
+          return;
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.path) {
+          setExcelPath(data.path);
+        }
+      })
       .catch(err => console.error('Error fetching Excel path:', err));
   }, []);
 
