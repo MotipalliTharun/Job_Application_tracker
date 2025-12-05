@@ -92,3 +92,40 @@ export function parseLinkLine(line: string): { title?: string; url: string } | n
   return null;
 }
 
+/**
+ * Extracts URLs with titles from text
+ * Supports "Title|URL" format or plain text with URLs
+ * Returns array of { url: string, linkTitle?: string }
+ */
+export function extractUrlsWithTitles(text: string): Array<{ url: string; linkTitle?: string }> {
+  const lines = text.split('\n');
+  const results: Array<{ url: string; linkTitle?: string }> = [];
+  
+  for (const line of lines) {
+    const parsed = parseLinkLine(line);
+    if (parsed) {
+      results.push({
+        url: parsed.url,
+        linkTitle: parsed.title
+      });
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Extracts the first URL with title from text
+ * Returns { url?: string, title?: string }
+ */
+export function extractFirstUrlWithTitle(text: string): { url?: string; title?: string } {
+  const parsed = parseLinkLine(text.trim());
+  if (parsed) {
+    return {
+      url: parsed.url,
+      title: parsed.title
+    };
+  }
+  return {};
+}
+

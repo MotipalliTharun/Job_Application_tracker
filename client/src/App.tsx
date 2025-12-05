@@ -74,13 +74,39 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add links');
+        // Try to get error message from response
+        const contentType = response.headers.get('content-type');
+        let errorMessage = `Failed to add links: ${response.status} ${response.statusText}`;
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            // If JSON parsing fails, use status text
+          }
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text.substring(0, 200));
+        }
+        
+        throw new Error(errorMessage);
       }
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response when adding links:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+
+      await response.json(); // Consume the response
       await fetchApplications();
       setIsBulkModalOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add links');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add links';
+      setError(errorMessage);
       console.error('Error adding links:', err);
     }
   };
@@ -94,12 +120,39 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add links');
+        // Try to get error message from response
+        const contentType = response.headers.get('content-type');
+        let errorMessage = `Failed to add links: ${response.status} ${response.statusText}`;
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            // If JSON parsing fails, use status text
+          }
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text.substring(0, 200));
+        }
+        
+        throw new Error(errorMessage);
       }
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response when adding links:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+
+      await response.json(); // Consume the response
       await fetchApplications();
+      setIsBulkModalOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add links');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add links';
+      setError(errorMessage);
       console.error('Error adding links:', err);
     }
   };

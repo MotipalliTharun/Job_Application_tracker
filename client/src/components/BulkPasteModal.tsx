@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { parseLinkLine } from '../utils/urlExtractor';
+import { extractUrlsWithTitles } from '../utils/urlExtractor';
 
 interface BulkPasteModalProps {
   isOpen: boolean;
@@ -14,26 +14,21 @@ export default function BulkPasteModal({ isOpen, onClose, onSubmit }: BulkPasteM
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const lines = links.split('\n');
     
-    // Extract URLs from each line, handling "Title|URL" format or plain text with URLs
-    const linkArray: string[] = [];
+    // Use the extractUrlsWithTitles function to parse the text
+    const parsedLinks = extractUrlsWithTitles(links);
     
-    for (const line of lines) {
-      const parsed = parseLinkLine(line);
-      if (parsed) {
-        // Format as "Title|URL" if title exists, otherwise just URL
-        if (parsed.title) {
-          linkArray.push(`${parsed.title}|${parsed.url}`);
-        } else {
-          linkArray.push(parsed.url);
-        }
-      }
-    }
-    
-    if (linkArray.length > 0) {
+    if (parsedLinks.length > 0) {
+      // Convert to the format expected by handleAddLinks: array of strings
+      // Format: "Title|URL" or just "URL"
+      const linkArray = parsedLinks.map(item => {
+        return item.linkTitle ? `${item.linkTitle}|${item.url}` : item.url;
+      });
+      
       onSubmit(linkArray);
       setLinks('');
+    } else {
+      alert('No valid URLs found in the pasted text. Please check and try again.');
     }
   };
 
