@@ -49,20 +49,32 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
   const addLink = useCallback(async (url: string, title?: string) => {
     try {
-      await api.post('/links', {
+      console.log('[HOOK] Adding link:', { url, title });
+      const response = await api.post('/links', {
         linksWithTitles: [{ url, linkTitle: title }],
       });
+      console.log('[HOOK] Link added successfully:', response);
+      // Force refresh with a small delay to ensure data is saved
+      await new Promise(resolve => setTimeout(resolve, 500));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after adding link');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to add link:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to add link');
     }
   }, [fetchApplications]);
 
   const addLinks = useCallback(async (links: Array<{ url: string; linkTitle?: string }>) => {
     try {
-      await api.post('/links', { linksWithTitles: links });
+      console.log('[HOOK] Adding links:', links.length);
+      const response = await api.post('/links', { linksWithTitles: links });
+      console.log('[HOOK] Links added successfully:', response);
+      // Force refresh with a small delay to ensure data is saved
+      await new Promise(resolve => setTimeout(resolve, 500));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after adding links');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to add links:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to add links');
     }
   }, [fetchApplications]);
@@ -96,9 +108,15 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
   const clearLink = useCallback(async (id: string) => {
     try {
-      await api.delete(`/${id}/clear-link`);
+      console.log('[HOOK] Clearing link for application:', id);
+      const response = await api.delete(`/${id}/clear-link`);
+      console.log('[HOOK] Link cleared successfully:', response);
+      // Force refresh with a small delay to ensure data is saved
+      await new Promise(resolve => setTimeout(resolve, 500));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after clearing link');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to clear link:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to clear link');
     }
   }, [fetchApplications]);

@@ -37,11 +37,14 @@ export default function BulkPasteModal({ isOpen, onClose, onSubmit }: BulkPasteM
     try {
       setLoading(true);
       setError(null);
+      console.log('[BULK MODAL] Submitting links:', parsedLinks.length);
       await onSubmit(parsedLinks);
+      console.log('[BULK MODAL] Links added successfully');
       setLinks('');
       setPreview([]);
       onClose();
     } catch (err) {
+      console.error('[BULK MODAL ERROR] Failed to add links:', err);
       setError(err instanceof Error ? err.message : 'Failed to add links');
     } finally {
       setLoading(false);

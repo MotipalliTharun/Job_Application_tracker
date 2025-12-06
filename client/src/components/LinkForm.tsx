@@ -22,10 +22,16 @@ export default function LinkForm({ onAddLink }: LinkFormProps) {
       setLoading(true);
       setError(null);
       const extracted = extractFirstUrlWithTitle(url);
-      await onAddLink(extracted.url || url, extracted.title || title || undefined);
+      const finalUrl = extracted.url || url;
+      const finalTitle = extracted.title || title || undefined;
+      
+      console.log('[LINKFORM] Submitting:', { url: finalUrl, title: finalTitle });
+      await onAddLink(finalUrl, finalTitle);
+      console.log('[LINKFORM] Link added successfully');
       setUrl('');
       setTitle('');
     } catch (err) {
+      console.error('[LINKFORM ERROR] Failed to add link:', err);
       setError(err instanceof Error ? err.message : 'Failed to add link');
     } finally {
       setLoading(false);

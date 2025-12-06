@@ -227,7 +227,10 @@ export async function hardDeleteApplication(id: string): Promise<void> {
  * Clear link (remove URL and linkTitle only)
  */
 export async function clearLink(id: string): Promise<Application> {
-  return updateApplication(id, { url: '', linkTitle: undefined });
+  console.log('[SERVICE] Clearing link for application:', id);
+  const updated = await updateApplication(id, { url: '', linkTitle: undefined });
+  console.log('[SERVICE] Link cleared successfully:', { id, hasUrl: !!updated.url });
+  return updated;
 }
 
 /**

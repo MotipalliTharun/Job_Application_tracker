@@ -15,6 +15,8 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   
+  console.log('[API] Request:', options?.method || 'GET', url);
+  
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -22,6 +24,8 @@ export async function apiRequest<T>(
       ...options?.headers,
     },
   });
+
+  console.log('[API] Response:', response.status, response.statusText);
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type');
@@ -31,9 +35,14 @@ export async function apiRequest<T>(
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
+        console.error('[API ERROR] Error response:', errorData);
       } catch (e) {
         // Ignore JSON parse errors
+        console.error('[API ERROR] Failed to parse error response');
       }
+    } else {
+      const text = await response.text();
+      console.error('[API ERROR] Non-JSON error response:', text.substring(0, 200));
     }
     
     throw new Error(errorMessage);
@@ -41,10 +50,13 @@ export async function apiRequest<T>(
 
   const contentType = response.headers.get('content-type');
   if (contentType?.includes('application/json')) {
-    return response.json();
+    const data = await response.json();
+    console.log('[API SUCCESS] Response data:', Array.isArray(data) ? `${data.length} items` : 'object');
+    return data;
   }
   
-  return response.text() as T;
+  const text = await response.text();
+  return text as T;
 }
 
 export const api = {

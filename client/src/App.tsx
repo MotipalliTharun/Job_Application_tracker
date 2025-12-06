@@ -33,8 +33,15 @@ function App() {
 
   const handleAddLink = async (url: string, title?: string) => {
     try {
+      console.log('[APP] Adding link:', { url, title });
       await addLink(url, title);
+      console.log('[APP] Link added successfully, refreshing...');
+      // Ensure we're showing TODO items (new links default to TODO)
+      if (statusFilter !== 'ALL' && statusFilter !== 'TODO') {
+        setStatusFilter('TODO');
+      }
     } catch (err) {
+      console.error('[APP ERROR] Failed to add link:', err);
       handleError(err instanceof Error ? err : new Error('Failed to add link'));
       throw err;
     }
@@ -42,8 +49,15 @@ function App() {
 
   const handleAddLinks = async (links: Array<{ url: string; linkTitle?: string }>) => {
     try {
+      console.log('[APP] Adding links:', links.length);
       await addLinks(links);
+      console.log('[APP] Links added successfully, refreshing...');
+      // Ensure we're showing TODO items (new links default to TODO)
+      if (statusFilter !== 'ALL' && statusFilter !== 'TODO') {
+        setStatusFilter('TODO');
+      }
     } catch (err) {
+      console.error('[APP ERROR] Failed to add links:', err);
       handleError(err instanceof Error ? err : new Error('Failed to add links'));
       throw err;
     }
@@ -78,8 +92,11 @@ function App() {
 
   const handleClearLink = async (id: string) => {
     try {
+      console.log('[APP] Clearing link for application:', id);
       await clearLink(id);
+      console.log('[APP] Link cleared successfully');
     } catch (err) {
+      console.error('[APP ERROR] Failed to clear link:', err);
       handleError(err instanceof Error ? err : new Error('Failed to clear link'));
       throw err;
     }
