@@ -99,6 +99,7 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
 
   for (const link of links) {
     if (typeof link !== 'string' || !link.trim()) {
+      console.log('[CREATE LINKS] Skipping empty or invalid link:', link);
       continue;
     }
 
@@ -119,15 +120,26 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
       }
     }
 
-    // Validate URL
-    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    // Normalize URL - add https:// if missing
+    if (!url || !url.trim()) {
+      console.log('[CREATE LINKS] Skipping link with empty URL:', link);
       continue;
+    }
+    
+    // Add protocol if missing
+    const originalUrl = url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+      console.log('[CREATE LINKS] Normalized URL:', originalUrl, '->', url);
     }
 
     // Skip if URL already exists
     if (existingApps.some(app => app.url === url)) {
+      console.log('[CREATE LINKS] Skipping duplicate URL:', url);
       continue;
     }
+    
+    console.log('[CREATE LINKS] Creating application for URL:', url, 'Title:', linkTitle);
 
     newApps.push({
       id: uuidv4(),

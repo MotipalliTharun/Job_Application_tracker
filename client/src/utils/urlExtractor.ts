@@ -15,6 +15,25 @@ function isValidUrl(url: string): boolean {
   }
 }
 
+/**
+ * Normalize URL by adding https:// prefix if missing
+ */
+export function normalizeUrl(url: string): string {
+  if (!url || !url.trim()) {
+    return url;
+  }
+  
+  const trimmed = url.trim();
+  
+  // If already has protocol, return as is
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  
+  // Add https:// prefix
+  return `https://${trimmed}`;
+}
+
 export function extractUrlsWithTitles(text: string): Array<{ url: string; linkTitle?: string }> {
   const lines = text.split('\n');
   const results: Array<{ url: string; linkTitle?: string }> = [];
@@ -28,7 +47,7 @@ export function extractUrlsWithTitles(text: string): Array<{ url: string; linkTi
       const title = titleUrlMatch[1].trim();
       const url = titleUrlMatch[2].trim();
       if (isValidUrl(url)) {
-        results.push({ url, linkTitle: title || undefined });
+        results.push({ url: normalizeUrl(url), linkTitle: title || undefined });
       }
     } else {
       const urlsInLine = Array.from(trimmedLine.matchAll(URL_REGEX)).map(match => match[0]);
@@ -36,10 +55,10 @@ export function extractUrlsWithTitles(text: string): Array<{ url: string; linkTi
         const firstUrl = urlsInLine[0];
         const textBeforeUrl = trimmedLine.substring(0, trimmedLine.indexOf(firstUrl)).trim();
         if (isValidUrl(firstUrl)) {
-          results.push({ url: firstUrl, linkTitle: textBeforeUrl || undefined });
+          results.push({ url: normalizeUrl(firstUrl), linkTitle: textBeforeUrl || undefined });
         }
       } else if (isValidUrl(trimmedLine)) {
-        results.push({ url: trimmedLine });
+        results.push({ url: normalizeUrl(trimmedLine) });
       }
     }
   });
@@ -54,15 +73,15 @@ export function extractFirstUrlWithTitle(text: string): { url?: string; title?: 
   if (titleUrlMatch) {
     const title = titleUrlMatch[1].trim();
     const url = titleUrlMatch[2].trim();
-    return { url: isValidUrl(url) ? url : undefined, title: title || undefined };
+    return { url: isValidUrl(url) ? normalizeUrl(url) : undefined, title: title || undefined };
   }
 
   const urlMatch = trimmedText.match(URL_REGEX);
   if (urlMatch && urlMatch[0]) {
     const url = urlMatch[0];
     const textBeforeUrl = trimmedText.substring(0, trimmedText.indexOf(url)).trim();
-    return { url: isValidUrl(url) ? url : undefined, title: textBeforeUrl || undefined };
+    return { url: isValidUrl(url) ? normalizeUrl(url) : undefined, title: textBeforeUrl || undefined };
   }
 
-  return { url: isValidUrl(trimmedText) ? trimmedText : undefined };
+  return { url: isValidUrl(trimmedText) ? normalizeUrl(trimmedText) : undefined };
 }

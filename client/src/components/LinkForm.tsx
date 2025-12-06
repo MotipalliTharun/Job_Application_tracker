@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { extractFirstUrlWithTitle } from '../utils/urlExtractor';
+import { extractFirstUrlWithTitle, normalizeUrl } from '../utils/urlExtractor';
 
 interface LinkFormProps {
   onAddLink: (url: string, title?: string) => Promise<void>;
@@ -22,7 +22,8 @@ export default function LinkForm({ onAddLink }: LinkFormProps) {
       setLoading(true);
       setError(null);
       const extracted = extractFirstUrlWithTitle(url);
-      const finalUrl = extracted.url || url;
+      // Normalize URL - add https:// if missing
+      const finalUrl = extracted.url ? extracted.url : normalizeUrl(url);
       const finalTitle = extracted.title || title || undefined;
       
       console.log('[LINKFORM] Submitting:', { url: finalUrl, title: finalTitle });
