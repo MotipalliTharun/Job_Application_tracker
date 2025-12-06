@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Application } from '../types';
 import { api } from '../utils/api';
 import StatusBadge from './StatusBadge';
@@ -7,7 +7,11 @@ interface TodoDashboardProps {
   onRefresh?: () => void;
 }
 
-export default function TodoDashboard({ onRefresh }: TodoDashboardProps) {
+export interface TodoDashboardRef {
+  refresh: () => void;
+}
+
+const TodoDashboard = forwardRef<TodoDashboardRef, TodoDashboardProps>(({ onRefresh }, ref) => {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,22 +41,19 @@ export default function TodoDashboard({ onRefresh }: TodoDashboardProps) {
     }
   };
 
+  // Expose refresh method via ref
+  useImperativeHandle(ref, () => ({
+    refresh: fetchTodoApplications,
+  }));
+
   useEffect(() => {
     fetchTodoApplications();
-    
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchTodoApplications, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleLinkClick = (url: string) => {
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
-  };
-
-  const handleRefresh = () => {
-    fetchTodoApplications();
   };
 
   if (loading && applications.length === 0) {
@@ -72,26 +73,16 @@ export default function TodoDashboard({ onRefresh }: TodoDashboardProps) {
 
   return (
     <div className="mb-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">TODO Links Dashboard</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {applications.length} {applications.length === 1 ? 'link' : 'links'} to review
-            {lastRefresh && (
-              <span className="ml-2 text-gray-400">
-                • Last updated: {lastRefresh.toLocaleTimeString()}
-              </span>
-            )}
-          </p>
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-        >
-          <span>🔄</span>
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-gray-900">TODO Links Dashboard</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          {applications.length} {applications.length === 1 ? 'link' : 'links'} to review
+          {lastRefresh && (
+            <span className="ml-2 text-gray-400">
+              • Last updated: {lastRefresh.toLocaleTimeString()}
+            </span>
+          )}
+        </p>
       </div>
 
       {error && (
@@ -211,5 +202,9 @@ export default function TodoDashboard({ onRefresh }: TodoDashboardProps) {
       )}
     </div>
   );
-}
+});
+
+TodoDashboard.displayName = 'TodoDashboard';
+
+export default TodoDashboard;
 
