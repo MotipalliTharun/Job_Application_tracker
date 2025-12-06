@@ -174,15 +174,23 @@ router.post('/links', async (req, res) => {
 // PATCH /api/applications/:id
 router.patch('/:id', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.updateApplication) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { id } = req.params;
-    const updated = await updateApplication(id, req.body);
-    res.json(updated);
+    const updated = await service.updateApplication(id, req.body);
+    return res.status(200).json(updated);
   } catch (error) {
-    if (error instanceof ApplicationNotFoundError) {
-      res.status(404).json({ error: error.message });
+    console.error('[API ERROR] Error updating application:', error);
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.ApplicationNotFoundError) {
+      return res.status(404).json({ error: error.message });
     } else {
-      console.error('Error updating application:', error);
-      res.status(500).json({
+      return res.status(400).json({
         error: 'Failed to update application',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -193,15 +201,23 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/applications/:id (soft delete)
 router.delete('/:id', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.softDeleteApplication) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { id } = req.params;
-    const archived = await softDeleteApplication(id);
-    res.json(archived);
+    const archived = await service.softDeleteApplication(id);
+    return res.status(200).json(archived);
   } catch (error) {
-    if (error instanceof ApplicationNotFoundError) {
-      res.status(404).json({ error: error.message });
+    console.error('[API ERROR] Error archiving application:', error);
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.ApplicationNotFoundError) {
+      return res.status(404).json({ error: error.message });
     } else {
-      console.error('Error archiving application:', error);
-      res.status(500).json({
+      return res.status(400).json({
         error: 'Failed to archive application',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -212,15 +228,23 @@ router.delete('/:id', async (req, res) => {
 // DELETE /api/applications/:id/hard (hard delete)
 router.delete('/:id/hard', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.hardDeleteApplication) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { id } = req.params;
-    await hardDeleteApplication(id);
-    res.status(204).send();
+    await service.hardDeleteApplication(id);
+    return res.status(204).send();
   } catch (error) {
-    if (error instanceof ApplicationNotFoundError) {
-      res.status(404).json({ error: error.message });
+    console.error('[API ERROR] Error deleting application:', error);
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.ApplicationNotFoundError) {
+      return res.status(404).json({ error: error.message });
     } else {
-      console.error('Error deleting application:', error);
-      res.status(500).json({
+      return res.status(400).json({
         error: 'Failed to delete application',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -231,15 +255,23 @@ router.delete('/:id/hard', async (req, res) => {
 // DELETE /api/applications/:id/clear-link
 router.delete('/:id/clear-link', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.clearLink) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { id } = req.params;
-    const updated = await clearLink(id);
-    res.json(updated);
+    const updated = await service.clearLink(id);
+    return res.status(200).json(updated);
   } catch (error) {
-    if (error instanceof ApplicationNotFoundError) {
-      res.status(404).json({ error: error.message });
+    console.error('[API ERROR] Error clearing link:', error);
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.ApplicationNotFoundError) {
+      return res.status(404).json({ error: error.message });
     } else {
-      console.error('Error clearing link:', error);
-      res.status(500).json({
+      return res.status(400).json({
         error: 'Failed to clear link',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -250,19 +282,25 @@ router.delete('/:id/clear-link', async (req, res) => {
 // GET /api/applications/stats
 router.get('/stats', async (req, res) => {
   try {
-    console.log('GET /api/applications/stats called', {
+    const service = await getApplicationService();
+    
+    if (!service || !service.getApplicationStats) {
+      throw new Error('Failed to load applicationService module');
+    }
+
+    console.log('[API] GET /api/applications/stats called', {
       isVercel: !!process.env.VERCEL,
       hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     });
     
-    const stats = await getApplicationStats();
-    console.log('Stats calculated:', stats);
-    res.json(stats);
+    const stats = await service.getApplicationStats();
+    console.log('[API SUCCESS] Stats calculated:', stats);
+    return res.status(200).json(stats);
   } catch (error) {
-    console.error('Error fetching stats:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
-    // Return empty stats instead of 500 error
-    res.json({
+    console.error('[API ERROR] Error fetching stats:', error);
+    console.error('[API ERROR] Error stack:', error instanceof Error ? error.stack : undefined);
+    // Return empty stats with 200 status instead of 500
+    return res.status(200).json({
       total: 0,
       byStatus: {
         TODO: 0,
@@ -293,19 +331,25 @@ router.get('/excel-path', (req, res) => {
 // POST /api/applications/restore
 router.post('/restore', upload.single('file'), async (req, res) => {
   try {
+    const excel = await getExcelService();
+    
+    if (!excel || !excel.restoreExcelFile) {
+      throw new Error('Failed to load excelService module');
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const applications = await restoreExcelFile(req.file.buffer);
-    res.json({ 
+    const applications = await excel.restoreExcelFile(req.file.buffer);
+    return res.status(200).json({ 
       message: 'Excel file restored successfully', 
       count: applications.length,
       applications 
     });
   } catch (error) {
-    console.error('Error restoring Excel file:', error);
-    res.status(500).json({
+    console.error('[API ERROR] Error restoring Excel file:', error);
+    return res.status(400).json({
       error: 'Failed to restore Excel file',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
