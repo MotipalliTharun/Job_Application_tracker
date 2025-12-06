@@ -38,11 +38,14 @@ async function getErrors() {
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// CORS middleware
+// CORS middleware - Enable for all routes
 router.use(cors({ 
   origin: '*',
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS', 'PUT'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: false,
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 }));
 
 // Request logging middleware
@@ -403,10 +406,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Vercel handler - This handles /api/applications/* routes
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Set CORS headers immediately
+  // Set CORS headers immediately for all requests
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS, PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'false');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
