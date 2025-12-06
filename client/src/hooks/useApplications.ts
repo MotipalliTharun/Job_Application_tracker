@@ -31,13 +31,16 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
       const queryString = params.toString();
       const endpoint = queryString ? `?${queryString}` : '';
+      
+      console.log('[HOOK] Fetching applications:', { endpoint, statusFilter: options.statusFilter, search: options.search });
       const data = await api.get<Application[]>(endpoint);
+      console.log('[HOOK] Received applications:', data.length, 'with URLs:', data.filter(a => a.url).length);
       
       setApplications(data);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch applications';
       setError(errorMessage);
-      console.error('Error fetching applications:', err);
+      console.error('[HOOK ERROR] Error fetching applications:', err);
     } finally {
       setLoading(false);
     }

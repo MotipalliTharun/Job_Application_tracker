@@ -6,6 +6,7 @@ import FiltersBar from './components/FiltersBar';
 import ApplicationTable from './components/ApplicationTable';
 import BulkPasteModal from './components/BulkPasteModal';
 import StatsDashboard from './components/StatsDashboard';
+import TodoDashboard from './components/TodoDashboard';
 import { useApplications } from './hooks/useApplications';
 
 function App() {
@@ -119,6 +120,12 @@ function App() {
       <StatsDashboard />
 
       <LinkForm onAddLink={handleAddLink} />
+
+      {/* TODO Links Dashboard - Shows all TODO links with auto-refresh */}
+      <TodoDashboard onRefresh={() => {
+        // Trigger refresh of main applications list if needed
+        console.log('[APP] TodoDashboard requested refresh');
+      }} />
 
       <FiltersBar
         statusFilter={statusFilter}
