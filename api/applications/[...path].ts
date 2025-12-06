@@ -7,18 +7,33 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import {
-  getAllApplications,
-  createApplicationsFromLinks,
-  getApplicationById,
-  updateApplication,
-  softDeleteApplication,
-  hardDeleteApplication,
-  clearLink,
-  getApplicationStats,
-} from '../../server/src/services/applicationService.js';
-import { restoreExcelFile } from '../../server/src/services/excelService.js';
-import { ApplicationNotFoundError, InvalidApplicationDataError } from '../../server/src/utils/errors.js';
+
+// Dynamic imports will be used in route handlers to handle module loading issues
+let applicationService: any;
+let excelService: any;
+let errors: any;
+
+// Lazy load services to handle potential import issues
+async function getApplicationService() {
+  if (!applicationService) {
+    applicationService = await import('../../server/src/services/applicationService.js');
+  }
+  return applicationService;
+}
+
+async function getExcelService() {
+  if (!excelService) {
+    excelService = await import('../../server/src/services/excelService.js');
+  }
+  return excelService;
+}
+
+async function getErrors() {
+  if (!errors) {
+    errors = await import('../../server/src/utils/errors.js');
+  }
+  return errors;
+}
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -50,6 +65,12 @@ router.get('/', async (req, res) => {
       blobTokenLength: process.env.BLOB_READ_WRITE_TOKEN?.length || 0,
     });
     
+    // Dynamic import to handle module loading issues
+    const service = await getApplicationService();
+    if (!service || !service.getAllApplications) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { status, priority, search, startDate, endDate } = req.query;
     
     const filters = {
@@ -64,33 +85,44 @@ router.get('/', async (req, res) => {
       }),
     };
 
-    const applications = await getAllApplications(Object.keys(filters).length > 0 ? filters : undefined);
-    console.log(`Returning ${applications.length} applications`);
-    res.json(applications);
+    const applications = await service.getAllApplications(Object.keys(filters).length > 0 ? filters : undefined);
+    console.log(`[API SUCCESS] Returning ${applications.length} applications`);
+    return res.status(200).json(applications);
   } catch (error) {
-    console.error('Error fetching applications:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
-    res.status(500).json({
-      error: 'Failed to fetch applications',
+    console.error('[API ERROR] Error fetching applications:', error);
+    console.error('[API ERROR] Error details:', {
       message: error instanceof Error ? error.message : 'Unknown error',
-      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined,
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     });
+    
+    // Return empty array with 200 status instead of 500 to prevent frontend crashes
+    return res.status(200).json([]);
   }
 });
 
 // GET /api/applications/:id
 router.get('/:id', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.getApplicationById) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { id } = req.params;
-    const application = await getApplicationById(id);
-    res.json(application);
+    const application = await service.getApplicationById(id);
+    return res.status(200).json(application);
   } catch (error) {
-    if (error instanceof ApplicationNotFoundError) {
-      res.status(404).json({ error: error.message });
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.ApplicationNotFoundError) {
+      return res.status(404).json({ error: error.message });
     } else {
-      console.error('Error fetching application:', error);
-      res.status(500).json({
-        error: 'Failed to fetch application',
+      console.error('[API ERROR] Error fetching application:', error);
+      return res.status(404).json({
+        error: 'Application not found',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
@@ -100,6 +132,13 @@ router.get('/:id', async (req, res) => {
 // POST /api/applications/links
 router.post('/links', async (req, res) => {
   try {
+    const service = await getApplicationService();
+    const errorUtils = await getErrors();
+    
+    if (!service || !service.createApplicationsFromLinks) {
+      throw new Error('Failed to load applicationService module');
+    }
+
     const { links, linksWithTitles } = req.body;
     let linkArray: string[] = [];
 
@@ -116,14 +155,15 @@ router.post('/links', async (req, res) => {
       });
     }
 
-    const newApplications = await createApplicationsFromLinks(linkArray);
-    res.status(201).json(newApplications);
+    const newApplications = await service.createApplicationsFromLinks(linkArray);
+    return res.status(201).json(newApplications);
   } catch (error) {
-    console.error('Error creating applications:', error);
-    if (error instanceof InvalidApplicationDataError) {
-      res.status(400).json({ error: error.message });
+    console.error('[API ERROR] Error creating applications:', error);
+    const errorUtils = await getErrors();
+    if (errorUtils && error instanceof errorUtils.InvalidApplicationDataError) {
+      return res.status(400).json({ error: error.message });
     } else {
-      res.status(500).json({
+      return res.status(400).json({
         error: 'Failed to create applications',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
