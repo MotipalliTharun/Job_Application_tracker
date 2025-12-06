@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { ApplicationStatus } from './types';
 import Layout from './components/Layout';
 import LinkForm from './components/LinkForm';
 import FiltersBar from './components/FiltersBar';
@@ -7,12 +5,19 @@ import ApplicationTable from './components/ApplicationTable';
 import BulkPasteModal from './components/BulkPasteModal';
 import StatsDashboard from './components/StatsDashboard';
 import { useApplications } from './hooks/useApplications';
+import { useAppState } from './context/AppContext';
 
 function App() {
-  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'ALL'>('ALL');
-  const [search, setSearch] = useState('');
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    statusFilter,
+    search,
+    isBulkModalOpen,
+    error,
+    setStatusFilter,
+    setSearch,
+    setIsBulkModalOpen,
+    setError,
+  } = useAppState();
 
   const {
     applications,
@@ -28,7 +33,6 @@ function App() {
 
   const handleError = (err: Error) => {
     setError(err.message);
-    setTimeout(() => setError(null), 5000);
   };
 
   const handleAddLink = async (url: string, title?: string) => {
