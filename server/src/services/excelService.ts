@@ -247,16 +247,27 @@ export async function loadApplications(): Promise<Application[]> {
     }
     
     const applications: Application[] = [];
+    
+    // Check if there are any data rows (rowCount includes header, so > 1 means data exists)
+    if (worksheet.rowCount <= 1) {
+      console.log('No data rows found (only header row), returning empty array');
+      return [];
+    }
+    
     const rows = worksheet.getRows(2, worksheet.rowCount - 1); // Skip header row
     
-    if (!rows) {
+    if (!rows || rows.length === 0) {
       console.log('No rows found, returning empty array');
       return [];
     }
     
     console.log(`Found ${rows.length} rows to process`);
     for (const row of rows) {
-      if (!row.getCell(1).value) continue; // Skip empty rows
+      // Skip empty rows - check if first cell (ID) has a value
+      const firstCellValue = row.getCell(1).value;
+      if (!firstCellValue || (typeof firstCellValue === 'string' && firstCellValue.trim() === '')) {
+        continue;
+      }
       
       // Handle old format (10-12 columns) and new format (13 columns with linkTitle)
       const colCount = row.cellCount;

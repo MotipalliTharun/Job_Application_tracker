@@ -3,7 +3,59 @@ import { Application } from '../models/Application.js';
 import { loadApplications, saveApplications } from './excelService.js';
 
 export async function getAllApplications(): Promise<Application[]> {
-  return await loadApplications();
+  try {
+    const applications = await loadApplications();
+    
+    // If no applications exist, create a dummy one to help users get started
+    if (applications.length === 0) {
+      console.log('No applications found. Creating a dummy application to get started...');
+      const dummyApp: Application = {
+        id: uuidv4(),
+        url: 'https://example.com/job-posting',
+        linkTitle: 'Example Job Posting',
+        company: 'Example Company',
+        roleTitle: 'Software Engineer',
+        location: 'Remote',
+        status: 'TODO',
+        priority: 'MEDIUM',
+        notes: 'This is a sample application. You can edit or delete it. Start by adding your own job links!',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      await saveApplications([dummyApp]);
+      console.log('Dummy application created successfully');
+      return [dummyApp];
+    }
+    
+    return applications;
+  } catch (error) {
+    console.error('Error in getAllApplications:', error);
+    // If there's an error loading, try to create a fresh file with a dummy app
+    try {
+      console.log('Attempting to recover by creating a new file with dummy application...');
+      const dummyApp: Application = {
+        id: uuidv4(),
+        url: 'https://example.com/job-posting',
+        linkTitle: 'Example Job Posting',
+        company: 'Example Company',
+        roleTitle: 'Software Engineer',
+        location: 'Remote',
+        status: 'TODO',
+        priority: 'MEDIUM',
+        notes: 'This is a sample application. You can edit or delete it. Start by adding your own job links!',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      await saveApplications([dummyApp]);
+      console.log('Recovery successful - dummy application created');
+      return [dummyApp];
+    } catch (recoveryError) {
+      console.error('Recovery failed:', recoveryError);
+      throw new Error(`Failed to load applications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export async function createApplicationsFromLinks(links: string[]): Promise<Application[]> {
