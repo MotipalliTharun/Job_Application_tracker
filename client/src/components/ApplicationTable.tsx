@@ -75,11 +75,11 @@ export default function ApplicationTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {applications.map((app) => (
               <tr key={app.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4">
                   {editingId === app.id && editingField === 'url' ? (
                     <input
                       type="text"
-                      defaultValue={app.url}
+                      defaultValue={app.url || ''}
                       onBlur={(e) => handleInlineEdit(app.id, 'url', e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -91,25 +91,41 @@ export default function ApplicationTable({
                       }}
                       className="w-full px-2 py-1 border rounded text-sm"
                       autoFocus
+                      placeholder="Enter URL"
                     />
                   ) : (
-                    <div className="flex items-center gap-2">
-                      {app.url ? (
-                        <button
-                          onClick={() => handleLinkClick(app.url)}
-                          className="text-blue-600 hover:underline font-medium"
+                    <div className="flex items-center gap-2 min-w-0">
+                      {app.url && app.url.trim() ? (
+                        <a
+                          href={app.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleLinkClick(app.url);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer flex items-center gap-1.5 group"
+                          title={`Click to open: ${app.url}`}
                         >
-                          {app.linkTitle || app.url}
-                        </button>
+                          <span className="text-lg">🔗</span>
+                          <span className="max-w-md truncate group-hover:underline">
+                            {app.linkTitle || app.url}
+                          </span>
+                          {app.linkTitle && (
+                            <span className="text-xs text-gray-500 truncate max-w-xs hidden md:inline">
+                              ({app.url})
+                            </span>
+                          )}
+                        </a>
                       ) : (
-                        <span className="text-gray-400 italic">No link</span>
+                        <span className="text-gray-400 italic text-sm">No link</span>
                       )}
                       <button
                         onClick={() => {
                           setEditingId(app.id);
                           setEditingField('url');
                         }}
-                        className="text-xs text-gray-400 hover:text-gray-600"
+                        className="text-xs text-gray-400 hover:text-gray-600 ml-1 flex-shrink-0"
                         title="Edit URL"
                       >
                         ✏️
