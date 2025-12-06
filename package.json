@@ -6,7 +6,10 @@
     "install:all": "npm install --prefix client && npm install --prefix server",
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
     "dev:client": "npm run dev --prefix client",
-    "dev:server": "npm run dev --prefix server"
+    "dev:server": "npm run dev --prefix server",
+    "test": "npm run test --prefix server",
+    "test:watch": "npm run test:watch --prefix server",
+    "test:all": "npm run test && npm run test --prefix client"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.0",
@@ -23,6 +26,8 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^20.10.5",
     "@types/uuid": "^9.0.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
     "concurrently": "^8.2.2",
     "typescript": "^5.3.3"
   },

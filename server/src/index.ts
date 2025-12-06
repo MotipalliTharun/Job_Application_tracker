@@ -1,11 +1,14 @@
 /**
- * Vercel Serverless Function - Main API Route Handler
- * Handles all /api/applications/* routes
+ * Local Development Server
+ * This is only used for local development
+ * On Vercel, the API routes in /api are used instead
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import multer from 'multer';
 import {
   getAllApplications,
@@ -16,31 +19,34 @@ import {
   hardDeleteApplication,
   clearLink,
   getApplicationStats,
-} from '../../server/src/services/applicationService.js';
-import { restoreExcelFile } from '../../server/src/services/excelService.js';
-import { ApplicationNotFoundError, InvalidApplicationDataError } from '../../server/src/utils/errors.js';
+} from './services/applicationService.js';
+import { restoreExcelFile } from './services/excelService.js';
+import { ApplicationNotFoundError, InvalidApplicationDataError } from './utils/errors.js';
 
-const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 4000;
 const upload = multer({ storage: multer.memoryStorage() });
 
-// CORS middleware
-router.use(cors({ 
-  origin: '*',
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+// Middleware
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.raw({ 
+  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+  limit: '10mb' 
 }));
 
-// Request logging middleware
-router.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, {
-    query: req.query,
-    hasBody: !!req.body,
-  });
+// Request logging
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
+// Routes
 // GET /api/applications
-router.get('/', async (req, res) => {
+app.get('/api/applications', async (req, res) => {
   try {
     const { status, priority, search, startDate, endDate } = req.query;
     
@@ -68,7 +74,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/applications/:id
-router.get('/:id', async (req, res) => {
+app.get('/api/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const application = await getApplicationById(id);
@@ -87,7 +93,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/applications/links
-router.post('/links', async (req, res) => {
+app.post('/api/applications/links', async (req, res) => {
   try {
     const { links, linksWithTitles } = req.body;
     let linkArray: string[] = [];
@@ -121,7 +127,7 @@ router.post('/links', async (req, res) => {
 });
 
 // PATCH /api/applications/:id
-router.patch('/:id', async (req, res) => {
+app.patch('/api/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await updateApplication(id, req.body);
@@ -140,7 +146,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 // DELETE /api/applications/:id (soft delete)
-router.delete('/:id', async (req, res) => {
+app.delete('/api/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const archived = await softDeleteApplication(id);
@@ -159,7 +165,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // DELETE /api/applications/:id/hard (hard delete)
-router.delete('/:id/hard', async (req, res) => {
+app.delete('/api/applications/:id/hard', async (req, res) => {
   try {
     const { id } = req.params;
     await hardDeleteApplication(id);
@@ -178,7 +184,7 @@ router.delete('/:id/hard', async (req, res) => {
 });
 
 // DELETE /api/applications/:id/clear-link
-router.delete('/:id/clear-link', async (req, res) => {
+app.delete('/api/applications/:id/clear-link', async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await clearLink(id);
@@ -197,7 +203,7 @@ router.delete('/:id/clear-link', async (req, res) => {
 });
 
 // GET /api/applications/stats
-router.get('/stats', async (req, res) => {
+app.get('/api/applications/stats', async (req, res) => {
   try {
     const stats = await getApplicationStats();
     res.json(stats);
@@ -211,7 +217,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // GET /api/applications/excel-path
-router.get('/excel-path', (req, res) => {
+app.get('/api/applications/excel-path', (req, res) => {
   res.json({ 
     path: process.env.VERCEL ? 'Vercel Blob Storage' : 'data/applications.xlsx',
     storage: process.env.VERCEL ? 'blob' : 'filesystem',
@@ -219,7 +225,7 @@ router.get('/excel-path', (req, res) => {
 });
 
 // POST /api/applications/restore
-router.post('/restore', upload.single('file'), async (req, res) => {
+app.post('/api/applications/restore', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -240,61 +246,31 @@ router.post('/restore', upload.single('file'), async (req, res) => {
   }
 });
 
-// Express app setup
-const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.raw({ 
-  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-  limit: '10mb' 
-}));
-app.use('/', router);
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.url} not found`,
-    availableRoutes: [
-      'GET /',
-      'GET /:id',
-      'POST /links',
-      'PATCH /:id',
-      'DELETE /:id',
-      'DELETE /:id/hard',
-      'DELETE /:id/clear-link',
-      'GET /stats',
-      'GET /excel-path',
-      'POST /restore',
-    ],
   });
 });
 
-// Vercel handler
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    const pathSegments = (req.query.path as string[]) || [];
-    let pathArray: string[] = [];
-    
-    if (Array.isArray(pathSegments)) {
-      pathArray = pathSegments;
-    } else if (typeof pathSegments === 'string') {
-      pathArray = [pathSegments];
-    }
-    
-    const path = pathArray.length > 0 ? '/' + pathArray.join('/') : '/';
-    const originalUrl = req.url || '/';
-    const queryString = originalUrl.includes('?') ? originalUrl.substring(originalUrl.indexOf('?')) : '';
-    
-    req.url = path + queryString;
-    (req as any).path = path;
-    (req as any).originalUrl = path + queryString;
-    
-    return app(req, res);
-  } catch (error) {
-    console.error('Handler error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-}
+// Error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: err instanceof Error ? err.message : 'Unknown error',
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📊 API available at http://localhost:${PORT}/api/applications`);
+});
+

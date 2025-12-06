@@ -2,66 +2,75 @@ import { useState, useEffect } from 'react';
 import { Application } from '../types';
 
 interface NotesModalProps {
-  isOpen: boolean;
-  application: Application | null;
+  application: Application;
   onClose: () => void;
-  onSave: (id: string, notes: string) => void;
+  onSave: (notes: string) => Promise<void>;
 }
 
-export default function NotesModal({ isOpen, application, onClose, onSave }: NotesModalProps) {
-  const [notes, setNotes] = useState('');
+export default function NotesModal({ application, onClose, onSave }: NotesModalProps) {
+  const [notes, setNotes] = useState(application.notes || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (application) {
-      setNotes(application.notes || '');
-    }
+    setNotes(application.notes || '');
   }, [application]);
 
-  if (!isOpen || !application) return null;
-
-  const handleSave = () => {
-    onSave(application.id, notes);
-    onClose();
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await onSave(notes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save notes');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Notes</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">Edit Notes</h2>
           <p className="text-sm text-gray-600 mt-1">
-            {application.company || 'Application'} - {application.roleTitle || 'No role title'}
+            {application.company || application.roleTitle || application.url}
           </p>
         </div>
         
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+          
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add your notes here..."
-            className="w-full h-full min-h-[200px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={10}
+            className="w-full h-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Add notes about this application..."
+            disabled={loading}
           />
         </div>
-        
-        <div className="px-6 py-4 border-t flex justify-end gap-3">
+
+        <div className="p-6 border-t border-gray-200 flex justify-end gap-2">
           <button
-            type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save Notes
+            {loading ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
     </div>
   );
 }
-

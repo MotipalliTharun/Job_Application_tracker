@@ -4,70 +4,124 @@ import { extractUrlsWithTitles } from '../utils/urlExtractor';
 interface BulkPasteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (links: string[]) => void;
+  onSubmit: (links: Array<{ url: string; linkTitle?: string }>) => Promise<void>;
 }
 
 export default function BulkPasteModal({ isOpen, onClose, onSubmit }: BulkPasteModalProps) {
   const [links, setLinks] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Array<{ url: string; linkTitle?: string }>>([]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePreview = () => {
+    const parsedLinks = extractUrlsWithTitles(links);
+    setPreview(parsedLinks);
+    if (parsedLinks.length === 0) {
+      setError('No valid links found in the pasted text.');
+    } else {
+      setError(null);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Use the extractUrlsWithTitles function to parse the text
     const parsedLinks = extractUrlsWithTitles(links);
     
-    if (parsedLinks.length > 0) {
-      // Convert to the format expected by handleAddLinks: array of strings
-      // Format: "Title|URL" or just "URL"
-      const linkArray = parsedLinks.map(item => {
-        return item.linkTitle ? `${item.linkTitle}|${item.url}` : item.url;
-      });
-      
-      onSubmit(linkArray);
+    if (parsedLinks.length === 0) {
+      setError('No valid links found in the pasted text.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await onSubmit(parsedLinks);
       setLinks('');
-    } else {
-      alert('No valid URLs found in the pasted text. Please check and try again.');
+      setPreview([]);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add links');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Paste Job Links</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">Bulk Add Links</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Paste text with links - URLs will be automatically extracted. Format: "Title|URL" or any text containing URLs
+            Paste multiple links (one per line) or use "Title|URL" format
           </p>
         </div>
-        
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-          <div className="flex-1 p-6">
-            <textarea
-              value={links}
-              onChange={(e) => setLinks(e.target.value)}
-              placeholder="Check out this job: https://careers.google.com/job/123&#10;Software Engineer - Google|https://example.com/job/2&#10;Visit www.example.com/jobs for more info"
-              className="w-full h-full min-h-[200px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-            />
+
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-6 flex-1 overflow-y-auto">
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Paste Links
+              </label>
+              <textarea
+                value={links}
+                onChange={(e) => {
+                  setLinks(e.target.value);
+                  setPreview([]);
+                  setError(null);
+                }}
+                placeholder="https://example.com/job1&#10;Software Engineer|https://example.com/job2&#10;https://example.com/job3"
+                className="w-full h-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={handlePreview}
+                className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                disabled={loading || !links.trim()}
+              >
+                Preview ({preview.length} links)
+              </button>
+            </div>
+
+            {preview.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Preview:</h3>
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
+                  {preview.map((link, index) => (
+                    <div key={index} className="text-sm py-1">
+                      <span className="font-medium">{link.linkTitle || 'No title'}</span>
+                      <span className="text-gray-500 mx-2">→</span>
+                      <span className="text-blue-600">{link.url}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          
-          <div className="px-6 py-4 border-t flex justify-end gap-3">
+
+          <div className="p-6 border-t border-gray-200 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => {
-                setLinks('');
-                onClose();
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading || preview.length === 0}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Links
+              {loading ? 'Adding...' : `Add ${preview.length || 'Links'}`}
             </button>
           </div>
         </form>
@@ -75,4 +129,3 @@ export default function BulkPasteModal({ isOpen, onClose, onSubmit }: BulkPasteM
     </div>
   );
 }
-

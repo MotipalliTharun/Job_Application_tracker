@@ -1,69 +1,95 @@
 import { useState } from 'react';
-import { extractFirstUrl, parseLinkLine } from '../utils/urlExtractor';
+import { extractFirstUrlWithTitle } from '../utils/urlExtractor';
 
 interface LinkFormProps {
-  onAddLink: (url: string, title?: string) => void;
+  onAddLink: (url: string, title?: string) => Promise<void>;
 }
 
 export default function LinkForm({ onAddLink }: LinkFormProps) {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleUrlPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) {
+      setError('URL is required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const extracted = extractFirstUrlWithTitle(url);
+      await onAddLink(extracted.url || url, extracted.title || title || undefined);
+      setUrl('');
+      setTitle('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add link');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUrlPaste = (e: React.ClipboardEvent) => {
     const pastedText = e.clipboardData.getData('text');
-    const extractedUrl = extractFirstUrl(pastedText);
-    
-    if (extractedUrl) {
-      e.preventDefault();
-      setUrl(extractedUrl);
-      
-      // Try to extract title from pasted text
-      const parsed = parseLinkLine(pastedText);
-      if (parsed && parsed.title && !title) {
-        setTitle(parsed.title);
+    const extracted = extractFirstUrlWithTitle(pastedText);
+    if (extracted.url) {
+      setUrl(extracted.url);
+      if (extracted.title) {
+        setTitle(extracted.title);
       }
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Extract URL from input if it contains text with URL
-    const extractedUrl = extractFirstUrl(url) || url.trim();
-    
-    if (extractedUrl) {
-      onAddLink(extractedUrl, title.trim() || undefined);
-      setUrl('');
-      setTitle('');
-    }
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-4 rounded-lg shadow-sm border">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Link Title (optional)"
-          className="sm:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onPaste={handleUrlPaste}
-          placeholder="Paste job link URL or any text with URL..."
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          Add Link
-        </button>
+    <form onSubmit={handleSubmit} className="mb-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+      <h2 className="text-lg font-semibold mb-4 text-gray-900">Add New Link</h2>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            URL <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onPaste={handleUrlPaste}
+            placeholder="https://example.com/job"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Title (optional)</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Job Title"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={loading}
+          />
+        </div>
+        <div className="flex items-end">
+          <button
+            type="submit"
+            disabled={loading || !url.trim()}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Adding...' : 'Add Link'}
+          </button>
+        </div>
       </div>
     </form>
   );
 }
-

@@ -1,16 +1,22 @@
+/**
+ * Excel Service
+ * Handles reading from and writing to Excel files
+ * Supports both local filesystem and Vercel Blob storage
+ */
+
 import ExcelJS from 'exceljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
 import { Application } from '../models/Application.js';
+import { EXCEL_FILE_NAME, EXCEL_SHEET_NAME, BLOB_FILE_NAME } from '../config/constants.js';
+import { ExcelServiceError } from '../utils/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../..');
-const EXCEL_FILE_PATH = path.join(projectRoot, '..', 'data', 'applications.xlsx');
-const SHEET_NAME = 'Applications';
-const BLOB_FILE_NAME = 'applications.xlsx';
+const EXCEL_FILE_PATH = path.join(projectRoot, '..', 'data', EXCEL_FILE_NAME);
 
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 
@@ -22,7 +28,9 @@ if (!isVercel) {
   }
 }
 
-// Get Vercel Blob storage module (dynamic import)
+/**
+ * Get Vercel Blob storage module (dynamic import)
+ */
 async function getBlobStorage() {
   if (!isVercel || !process.env.BLOB_READ_WRITE_TOKEN) {
     return null;
@@ -35,7 +43,9 @@ async function getBlobStorage() {
   }
 }
 
-// Get Excel file buffer
+/**
+ * Get Excel file buffer from storage
+ */
 async function getExcelFileBuffer(): Promise<Buffer | null> {
   try {
     if (isVercel) {
@@ -71,7 +81,9 @@ async function getExcelFileBuffer(): Promise<Buffer | null> {
   }
 }
 
-// Save Excel file buffer
+/**
+ * Save Excel file buffer to storage
+ */
 async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
   try {
     if (isVercel) {
@@ -91,7 +103,7 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
             }
           }
         } catch (error) {
-          // Ignore
+          // Ignore if file doesn't exist
         }
       }
       
@@ -101,6 +113,7 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
           access: 'public',
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
+        console.log('Excel file saved to Vercel Blob');
       }
     } else {
       const dataDir = path.dirname(EXCEL_FILE_PATH);
@@ -108,14 +121,20 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
         fs.mkdirSync(dataDir, { recursive: true });
       }
       fs.writeFileSync(EXCEL_FILE_PATH, buffer);
+      console.log('Excel file saved to local filesystem');
     }
   } catch (error) {
     console.error('Error saving Excel file:', error);
-    throw new Error(`Failed to save Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ExcelServiceError(
+      `Failed to save Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error instanceof Error ? error : undefined
+    );
   }
 }
 
-// Ensure workbook exists and has correct structure
+/**
+ * Ensure workbook exists and has correct structure
+ */
 async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   const fileBuffer = await getExcelFileBuffer();
@@ -128,13 +147,13 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
     }
   }
 
-  let worksheet = workbook.getWorksheet(SHEET_NAME);
+  let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
   if (!worksheet) {
-    worksheet = workbook.addWorksheet(SHEET_NAME);
+    worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
     worksheet.addRow([
       'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
       'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
-      'createdAt', 'updatedAt'
+      'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
     ]);
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
@@ -147,11 +166,13 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
   return workbook;
 }
 
-// Load applications from Excel
+/**
+ * Load applications from Excel
+ */
 export async function loadApplications(): Promise<Application[]> {
   try {
     const workbook = await ensureWorkbook();
-    const worksheet = workbook.getWorksheet(SHEET_NAME);
+    const worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
     
     if (!worksheet || worksheet.rowCount <= 1) {
       return [];
@@ -176,30 +197,37 @@ export async function loadApplications(): Promise<Application[]> {
         notes: row.getCell(9).value ? String(row.getCell(9).value) : undefined,
         appliedDate: row.getCell(10).value ? String(row.getCell(10).value) : undefined,
         interviewDate: row.getCell(11).value ? String(row.getCell(11).value) : undefined,
-        createdAt: String(row.getCell(12).value || new Date().toISOString()),
-        updatedAt: String(row.getCell(13).value || new Date().toISOString()),
+        offerDate: row.getCell(12).value ? String(row.getCell(12).value) : undefined,
+        rejectedDate: row.getCell(13).value ? String(row.getCell(13).value) : undefined,
+        createdAt: String(row.getCell(14).value || new Date().toISOString()),
+        updatedAt: String(row.getCell(15).value || new Date().toISOString()),
       });
     }
 
     return applications;
   } catch (error) {
     console.error('Error loading applications:', error);
-    throw new Error(`Failed to load applications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ExcelServiceError(
+      `Failed to load applications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error instanceof Error ? error : undefined
+    );
   }
 }
 
-// Save applications to Excel
+/**
+ * Save applications to Excel
+ */
 export async function saveApplications(applications: Application[]): Promise<void> {
   try {
     const workbook = await ensureWorkbook();
-    let worksheet = workbook.getWorksheet(SHEET_NAME);
+    let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
     
     if (!worksheet) {
-      worksheet = workbook.addWorksheet(SHEET_NAME);
+      worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
       worksheet.addRow([
         'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
         'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
-        'createdAt', 'updatedAt'
+        'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
       ]);
       worksheet.getRow(1).font = { bold: true };
       worksheet.getRow(1).fill = {
@@ -229,6 +257,8 @@ export async function saveApplications(applications: Application[]): Promise<voi
         app.notes || '',
         app.appliedDate || '',
         app.interviewDate || '',
+        app.offerDate || '',
+        app.rejectedDate || '',
         app.createdAt,
         app.updatedAt,
       ]);
@@ -239,11 +269,16 @@ export async function saveApplications(applications: Application[]): Promise<voi
     await saveExcelFileBuffer(Buffer.from(buffer as ArrayBuffer));
   } catch (error) {
     console.error('Error saving applications:', error);
-    throw new Error(`Failed to save applications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ExcelServiceError(
+      `Failed to save applications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error instanceof Error ? error : undefined
+    );
   }
 }
 
-// Restore Excel file from upload
+/**
+ * Restore Excel file from upload
+ */
 export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promise<Application[]> {
   try {
     const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
@@ -251,7 +286,9 @@ export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promis
     return await loadApplications();
   } catch (error) {
     console.error('Error restoring Excel file:', error);
-    throw new Error(`Failed to restore Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ExcelServiceError(
+      `Failed to restore Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error instanceof Error ? error : undefined
+    );
   }
 }
-

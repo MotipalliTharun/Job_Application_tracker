@@ -1,6 +1,5 @@
 /**
- * Application Model
- * Defines the data structure for job applications
+ * Type Definitions
  */
 
 export type ApplicationStatus = 
@@ -35,15 +34,6 @@ export interface ApplicationStats {
   total: number;
   byStatus: Record<ApplicationStatus, number>;
   byPriority: Record<ApplicationPriority, number>;
-  recentApplications: number; // Applications added in last 7 days
+  recentApplications: number;
 }
 
-export interface ApplicationFilters {
-  status?: ApplicationStatus;
-  priority?: ApplicationPriority;
-  search?: string;
-  dateRange?: {
-    start?: string;
-    end?: string;
-  };
-}

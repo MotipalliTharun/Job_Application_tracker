@@ -2,45 +2,28 @@ import { ApplicationStatus } from '../types';
 
 interface FiltersBarProps {
   statusFilter: ApplicationStatus | 'ALL';
-  onStatusChange: (status: ApplicationStatus | 'ALL') => void;
+  onStatusFilterChange: (status: ApplicationStatus | 'ALL') => void;
   search: string;
   onSearchChange: (search: string) => void;
-  onOpenBulkPaste: () => void;
+  onBulkPasteClick: () => void;
 }
 
 export default function FiltersBar({
   statusFilter,
-  onStatusChange,
+  onStatusFilterChange,
   search,
   onSearchChange,
-  onOpenBulkPaste,
+  onBulkPasteClick,
 }: FiltersBarProps) {
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm border mb-4">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
-            Search
-          </label>
-          <input
-            type="text"
-            id="search"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by company, role, notes, or URL..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        
-        <div className="sm:w-48">
-          <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-            Status
-          </label>
+    <div className="mb-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
           <select
-            id="status"
             value={statusFilter}
-            onChange={(e) => onStatusChange(e.target.value as ApplicationStatus | 'ALL')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => onStatusFilterChange(e.target.value as ApplicationStatus | 'ALL')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="ALL">All Statuses</option>
             <option value="TODO">TODO</option>
@@ -51,11 +34,20 @@ export default function FiltersBar({
             <option value="ARCHIVED">ARCHIVED</option>
           </select>
         </div>
-        
-        <div className="flex items-end gap-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search applications..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex items-end">
           <button
-            onClick={onOpenBulkPaste}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={onBulkPasteClick}
+            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
           >
             📋 Paste Links
           </button>
@@ -64,4 +56,3 @@ export default function FiltersBar({
     </div>
   );
 }
-

@@ -1,265 +1,128 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { ApplicationStatus } from './types';
 import Layout from './components/Layout';
+import LinkForm from './components/LinkForm';
 import FiltersBar from './components/FiltersBar';
 import ApplicationTable from './components/ApplicationTable';
-import StatsDashboard from './components/StatsDashboard';
 import BulkPasteModal from './components/BulkPasteModal';
-import LinkForm from './components/LinkForm';
-import UpdateIndicator from './components/UpdateIndicator';
-import { Application, ApplicationStatus } from './types';
-
-// Use environment variable for API base URL, fallback to relative path
-const API_BASE = import.meta.env.VITE_API_URL || '/api/applications';
+import StatsDashboard from './components/StatsDashboard';
+import { useApplications } from './hooks/useApplications';
 
 function App() {
-  const [_applications, setApplications] = useState<Application[]>([]);
-  const [filteredApplications, setFilteredApplications] = useState<Application[]>([]);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchApplications = async () => {
+  const {
+    applications,
+    loading,
+    error: fetchError,
+    addLink,
+    addLinks,
+    updateApplication,
+    archiveApplication,
+    deleteApplication,
+    clearLink,
+  } = useApplications({ statusFilter, search });
+
+  const handleError = (err: Error) => {
+    setError(err.message);
+    setTimeout(() => setError(null), 5000);
+  };
+
+  const handleAddLink = async (url: string, title?: string) => {
     try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (statusFilter !== 'ALL') {
-        params.append('status', statusFilter);
-      }
-      if (search) {
-        params.append('search', search);
-      }
-      
-      const url = `${API_BASE}${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const text = await response.text();
-        console.error('API Error Response:', text);
-        throw new Error(`Failed to fetch applications: ${response.status} ${response.statusText}`);
-      }
-      
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text.substring(0, 200));
-        throw new Error('Server returned non-JSON response. Check API endpoint.');
-      }
-      
-      const data = await response.json();
-      setApplications(data); // Store full list for stats and future use
-      setFilteredApplications(data);
+      await addLink(url, title);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Error fetching applications:', err);
-    } finally {
-      setLoading(false);
+      handleError(err instanceof Error ? err : new Error('Failed to add link'));
+      throw err;
     }
   };
 
-  useEffect(() => {
-    fetchApplications();
-  }, [statusFilter, search]);
-
-  const handleAddLinks = async (links: string[]) => {
+  const handleAddLinks = async (links: Array<{ url: string; linkTitle?: string }>) => {
     try {
-      const response = await fetch(`${API_BASE}/links`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ links }),
-      });
-
-      if (!response.ok) {
-        // Try to get error message from response
-        const contentType = response.headers.get('content-type');
-        let errorMessage = `Failed to add links: ${response.status} ${response.statusText}`;
-        
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorMessage;
-          } catch (e) {
-            // If JSON parsing fails, use status text
-          }
-        } else {
-          const text = await response.text();
-          console.error('Non-JSON error response:', text.substring(0, 200));
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response when adding links:', text.substring(0, 200));
-        throw new Error('Server returned non-JSON response');
-      }
-
-      await response.json(); // Consume the response
-      await fetchApplications();
-      setIsBulkModalOpen(false);
+      await addLinks(links);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add links';
-      setError(errorMessage);
-      console.error('Error adding links:', err);
+      handleError(err instanceof Error ? err : new Error('Failed to add links'));
+      throw err;
     }
   };
 
-  const handleAddLinksWithTitles = async (linksWithTitles: Array<{ url: string; linkTitle?: string }>) => {
+  const handleUpdate = async (id: string, updates: Partial<import('./types').Application>) => {
     try {
-      const response = await fetch(`${API_BASE}/links`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ linksWithTitles }),
-      });
-
-      if (!response.ok) {
-        // Try to get error message from response
-        const contentType = response.headers.get('content-type');
-        let errorMessage = `Failed to add links: ${response.status} ${response.statusText}`;
-        
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorMessage;
-          } catch (e) {
-            // If JSON parsing fails, use status text
-          }
-        } else {
-          const text = await response.text();
-          console.error('Non-JSON error response:', text.substring(0, 200));
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response when adding links:', text.substring(0, 200));
-        throw new Error('Server returned non-JSON response');
-      }
-
-      await response.json(); // Consume the response
-      await fetchApplications();
-      setIsBulkModalOpen(false);
+      await updateApplication(id, updates);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add links';
-      setError(errorMessage);
-      console.error('Error adding links:', err);
+      handleError(err instanceof Error ? err : new Error('Failed to update'));
+      throw err;
     }
   };
 
-  const handleUpdate = async (id: string, updates: Partial<Application>) => {
+  const handleArchive = async (id: string) => {
     try {
-      setError(null);
-      setIsUpdating(true);
-      
-      const response = await fetch(`${API_BASE}/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update application');
-      }
-
-      // Update saved to Excel - refresh data
-      await fetchApplications();
-      // Trigger stats refresh
-      window.dispatchEvent(new Event('stats-refresh'));
-      
-      // Show success indicator
-      setTimeout(() => setIsUpdating(false), 100);
+      await archiveApplication(id);
     } catch (err) {
-      setIsUpdating(false);
-      setError(err instanceof Error ? err.message : 'Failed to update application');
-      console.error('Error updating application:', err);
+      handleError(err instanceof Error ? err : new Error('Failed to archive'));
+      throw err;
     }
   };
 
-  const handleSoftDelete = async (id: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE}/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to soft delete application');
-      }
-
-      await fetchApplications();
+      await deleteApplication(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to soft delete application');
-      console.error('Error soft deleting application:', err);
+      handleError(err instanceof Error ? err : new Error('Failed to delete'));
+      throw err;
     }
   };
 
-  const handleHardDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to permanently delete this application?')) {
-      return;
-    }
-
+  const handleClearLink = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE}/${id}/hard`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to hard delete application');
-      }
-
-      await fetchApplications();
+      await clearLink(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to hard delete application');
-      console.error('Error hard deleting application:', err);
+      handleError(err instanceof Error ? err : new Error('Failed to clear link'));
+      throw err;
     }
   };
 
   return (
     <Layout>
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
           {error}
         </div>
       )}
-      
-      <FiltersBar
-        statusFilter={statusFilter}
-        onStatusChange={setStatusFilter}
-        search={search}
-        onSearchChange={setSearch}
-        onOpenBulkPaste={() => setIsBulkModalOpen(true)}
-      />
+
+      {fetchError && (
+        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg">
+          {fetchError}
+        </div>
+      )}
 
       <StatsDashboard />
 
-      <div className="mt-4 mb-6">
-        <LinkForm onAddLink={(url, title) => {
-          if (title) {
-            handleAddLinksWithTitles([{ url, linkTitle: title }]);
-          } else {
-            handleAddLinks([url]);
-          }
-        }} />
-      </div>
+      <LinkForm onAddLink={handleAddLink} />
+
+      <FiltersBar
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        search={search}
+        onSearchChange={setSearch}
+        onBulkPasteClick={() => setIsBulkModalOpen(true)}
+      />
 
       {loading ? (
-        <div className="text-center py-8">Loading...</div>
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading applications...</p>
+        </div>
       ) : (
         <ApplicationTable
-          applications={filteredApplications}
+          applications={applications}
           onUpdate={handleUpdate}
-          onSoftDelete={handleSoftDelete}
-          onHardDelete={handleHardDelete}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onClearLink={handleClearLink}
         />
       )}
 
@@ -268,11 +131,8 @@ function App() {
         onClose={() => setIsBulkModalOpen(false)}
         onSubmit={handleAddLinks}
       />
-
-      <UpdateIndicator isUpdating={isUpdating} />
     </Layout>
   );
 }
 
 export default App;
-

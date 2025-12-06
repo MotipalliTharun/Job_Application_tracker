@@ -1,48 +1,62 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Application } from '../models/Application.js';
-import { loadApplications, saveApplications } from './excelService.js';
+/**
+ * Application Service
+ * Business logic for managing job applications
+ */
 
-// Get all applications
-export async function getAllApplications(): Promise<Application[]> {
+import { v4 as uuidv4 } from 'uuid';
+import { Application, ApplicationStats, ApplicationFilters } from '../models/Application.js';
+import { loadApplications, saveApplications } from './excelService.js';
+import { ApplicationNotFoundError, InvalidApplicationDataError } from '../utils/errors.js';
+import { DEFAULT_STATUS, DEFAULT_PRIORITY } from '../config/constants.js';
+
+/**
+ * Get all applications with optional filtering
+ */
+export async function getAllApplications(filters?: ApplicationFilters): Promise<Application[]> {
   try {
-    const applications = await loadApplications();
+    let applications = await loadApplications();
     
+    // If no applications exist, create a dummy one
     if (applications.length === 0) {
-      const dummyApp: Application = {
-        id: uuidv4(),
-        url: 'https://example.com/job-posting',
-        linkTitle: 'Example Job Posting',
-        company: 'Example Company',
-        roleTitle: 'Software Engineer',
-        location: 'Remote',
-        status: 'TODO',
-        priority: 'MEDIUM',
-        notes: 'This is a sample application. You can edit or delete it!',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      
+      const dummyApp = createDummyApplication();
       await saveApplications([dummyApp]);
       return [dummyApp];
+    }
+    
+    // Apply filters
+    if (filters) {
+      if (filters.status) {
+        applications = applications.filter(app => app.status === filters.status);
+      }
+      if (filters.priority) {
+        applications = applications.filter(app => app.priority === filters.priority);
+      }
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        applications = applications.filter(app =>
+          app.company?.toLowerCase().includes(searchLower) ||
+          app.roleTitle?.toLowerCase().includes(searchLower) ||
+          app.notes?.toLowerCase().includes(searchLower) ||
+          (app.url && app.url.toLowerCase().includes(searchLower)) ||
+          (app.linkTitle && app.linkTitle.toLowerCase().includes(searchLower))
+        );
+      }
+      if (filters.dateRange) {
+        if (filters.dateRange.start) {
+          applications = applications.filter(app => app.createdAt >= filters.dateRange!.start!);
+        }
+        if (filters.dateRange.end) {
+          applications = applications.filter(app => app.createdAt <= filters.dateRange!.end!);
+        }
+      }
     }
     
     return applications;
   } catch (error) {
     console.error('Error in getAllApplications:', error);
+    // Try to recover by creating a dummy application
     try {
-      const dummyApp: Application = {
-        id: uuidv4(),
-        url: 'https://example.com/job-posting',
-        linkTitle: 'Example Job Posting',
-        company: 'Example Company',
-        roleTitle: 'Software Engineer',
-        location: 'Remote',
-        status: 'TODO',
-        priority: 'MEDIUM',
-        notes: 'This is a sample application. You can edit or delete it!',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const dummyApp = createDummyApplication();
       await saveApplications([dummyApp]);
       return [dummyApp];
     } catch (recoveryError) {
@@ -52,13 +66,23 @@ export async function getAllApplications(): Promise<Application[]> {
   }
 }
 
-// Create applications from links
+/**
+ * Create applications from links
+ */
 export async function createApplicationsFromLinks(links: string[]): Promise<Application[]> {
+  if (!Array.isArray(links) || links.length === 0) {
+    throw new InvalidApplicationDataError('Links must be a non-empty array');
+  }
+
   const existingApps = await loadApplications();
   const now = new Date().toISOString();
   const newApps: Application[] = [];
 
   for (const link of links) {
+    if (typeof link !== 'string' || !link.trim()) {
+      continue;
+    }
+
     // Parse "Title|URL" format
     const parts = link.split('|').map(s => s.trim());
     let url = link;
@@ -76,6 +100,11 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
       }
     }
 
+    // Validate URL
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      continue;
+    }
+
     // Skip if URL already exists
     if (existingApps.some(app => app.url === url)) {
       continue;
@@ -85,8 +114,8 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
       id: uuidv4(),
       url,
       linkTitle,
-      status: 'TODO',
-      priority: 'MEDIUM',
+      status: DEFAULT_STATUS,
+      priority: DEFAULT_PRIORITY,
       createdAt: now,
       updatedAt: now,
     });
@@ -99,13 +128,29 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
   return newApps;
 }
 
-// Update application
+/**
+ * Get application by ID
+ */
+export async function getApplicationById(id: string): Promise<Application> {
+  const applications = await loadApplications();
+  const application = applications.find(app => app.id === id);
+  
+  if (!application) {
+    throw new ApplicationNotFoundError(id);
+  }
+  
+  return application;
+}
+
+/**
+ * Update application
+ */
 export async function updateApplication(id: string, updates: Partial<Application>): Promise<Application> {
   const applications = await loadApplications();
   const index = applications.findIndex(app => app.id === id);
 
   if (index === -1) {
-    throw new Error(`Application with id ${id} not found`);
+    throw new ApplicationNotFoundError(id);
   }
 
   const app = applications[index];
@@ -115,12 +160,21 @@ export async function updateApplication(id: string, updates: Partial<Application
     updatedAt: new Date().toISOString(),
   };
 
-  // Auto-set dates based on status
-  if (updates.status === 'APPLIED' && !app.appliedDate) {
-    updatedApp.appliedDate = new Date().toISOString();
-  }
-  if (updates.status === 'INTERVIEW' && !app.interviewDate) {
-    updatedApp.interviewDate = new Date().toISOString();
+  // Auto-set dates based on status changes
+  if (updates.status) {
+    const now = new Date().toISOString();
+    if (updates.status === 'APPLIED' && !app.appliedDate) {
+      updatedApp.appliedDate = now;
+    }
+    if (updates.status === 'INTERVIEW' && !app.interviewDate) {
+      updatedApp.interviewDate = now;
+    }
+    if (updates.status === 'OFFER' && !app.offerDate) {
+      updatedApp.offerDate = now;
+    }
+    if (updates.status === 'REJECTED' && !app.rejectedDate) {
+      updatedApp.rejectedDate = now;
+    }
   }
 
   applications[index] = updatedApp;
@@ -129,20 +183,80 @@ export async function updateApplication(id: string, updates: Partial<Application
   return updatedApp;
 }
 
-// Soft delete (archive)
+/**
+ * Soft delete (archive)
+ */
 export async function softDeleteApplication(id: string): Promise<Application> {
   return updateApplication(id, { status: 'ARCHIVED' });
 }
 
-// Hard delete
+/**
+ * Hard delete
+ */
 export async function hardDeleteApplication(id: string): Promise<void> {
   const applications = await loadApplications();
   const filtered = applications.filter(app => app.id !== id);
+  
+  if (filtered.length === applications.length) {
+    throw new ApplicationNotFoundError(id);
+  }
+  
   await saveApplications(filtered);
 }
 
-// Clear link (remove URL and linkTitle only)
+/**
+ * Clear link (remove URL and linkTitle only)
+ */
 export async function clearLink(id: string): Promise<Application> {
   return updateApplication(id, { url: '', linkTitle: undefined });
 }
 
+/**
+ * Get application statistics
+ */
+export async function getApplicationStats(): Promise<ApplicationStats> {
+  const applications = await loadApplications();
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  
+  const recentApplications = applications.filter(
+    app => app.createdAt >= sevenDaysAgo
+  ).length;
+
+  return {
+    total: applications.length,
+    byStatus: {
+      TODO: applications.filter(a => a.status === 'TODO').length,
+      APPLIED: applications.filter(a => a.status === 'APPLIED').length,
+      INTERVIEW: applications.filter(a => a.status === 'INTERVIEW').length,
+      OFFER: applications.filter(a => a.status === 'OFFER').length,
+      REJECTED: applications.filter(a => a.status === 'REJECTED').length,
+      ARCHIVED: applications.filter(a => a.status === 'ARCHIVED').length,
+    },
+    byPriority: {
+      HIGH: applications.filter(a => a.priority === 'HIGH').length,
+      MEDIUM: applications.filter(a => a.priority === 'MEDIUM').length,
+      LOW: applications.filter(a => a.priority === 'LOW').length,
+    },
+    recentApplications,
+  };
+}
+
+/**
+ * Create dummy application for first-time users
+ */
+function createDummyApplication(): Application {
+  return {
+    id: uuidv4(),
+    url: 'https://example.com/job-posting',
+    linkTitle: 'Example Job Posting',
+    company: 'Example Company',
+    roleTitle: 'Software Engineer',
+    location: 'Remote',
+    status: DEFAULT_STATUS,
+    priority: DEFAULT_PRIORITY,
+    notes: 'This is a sample application. You can edit or delete it! Start by adding your own job links.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}

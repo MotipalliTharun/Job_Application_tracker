@@ -1,152 +1,177 @@
-# Link ATS Tracker
+# Link ATS Tracker - Improved Version
 
-A full-stack web application for tracking job applications. Store, manage, and organize job links with status tracking, priority levels, and notes. All data is persisted in an Excel file.
+A modern, full-stack web application for tracking job applications with enhanced features, better error handling, and improved UX.
 
-## Features
+## ✨ Features
 
-- 📋 **Bulk Link Import**: Paste multiple job links at once
+- 📋 **Bulk Link Import**: Paste multiple job links at once with preview
 - 📊 **Status Tracking**: Track applications through TODO → APPLIED → INTERVIEW → OFFER/REJECTED → ARCHIVED
 - 🎯 **Priority Levels**: Mark applications as LOW, MEDIUM, or HIGH priority
-- 📝 **Notes & Metadata**: Add company names, role titles, locations, and notes
-- 🔍 **Search & Filter**: Filter by status and search across all fields
-- 💾 **Excel Persistence**: All data stored in `data/applications.xlsx`
-- 🗑️ **Soft & Hard Delete**: Archive applications or permanently delete them
+- 📝 **Rich Notes**: Add detailed notes for each application
+- 🔍 **Advanced Search & Filter**: Filter by status, priority, and search across all fields
+- 💾 **Excel Persistence**: All data stored in Excel file (local) or Vercel Blob (deployed)
+- 🗑️ **Smart Delete Options**: Clear links, archive, or permanently delete
+- 🔗 **Link Management**: Click links to open, edit titles, clear links
+- 📈 **Statistics Dashboard**: Real-time stats with auto-refresh
+- ⚡ **Improved Performance**: Better state management and error handling
+- 🎨 **Modern UI**: Clean, responsive design with TailwindCSS
 
-## Tech Stack
+## 🚀 Tech Stack
 
-- **Frontend**: React + TypeScript + Vite + TailwindCSS
+- **Frontend**: React 18 + TypeScript + Vite + TailwindCSS
 - **Backend**: Node.js + Express + TypeScript
 - **Storage**: ExcelJS for reading/writing `.xlsx` files
+- **Deployment**: Vercel (with Blob storage support)
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 Application_tracker/
 ├── client/                 # React frontend
 │   ├── src/
 │   │   ├── components/     # React components
+│   │   ├── hooks/          # Custom React hooks
+│   │   ├── utils/          # Utility functions
+│   │   ├── types/          # TypeScript types
 │   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   └── types.ts
-│   ├── package.json
-│   └── vite.config.ts
+│   │   └── main.tsx
+│   └── package.json
 ├── server/                 # Express backend
 │   ├── src/
-│   │   ├── routes/         # API routes
 │   │   ├── services/       # Business logic & Excel service
 │   │   ├── models/         # TypeScript types
-│   │   └── index.ts
+│   │   ├── utils/          # Utility functions
+│   │   ├── config/         # Configuration
+│   │   └── ...
 │   └── package.json
-├── data/                   # Excel file storage
-│   └── applications.xlsx  # Auto-created on first use
-├── package.json            # Root scripts
-└── README.md
+├── api/                    # Vercel serverless functions
+│   └── applications/
+├── data/                   # Excel file storage (local)
+└── package.json            # Root scripts
 ```
 
-## Setup Instructions
+## 🛠️ Setup
 
 ### Prerequisites
 
-- Node.js (v18 or higher recommended)
+- Node.js (v18 or higher)
 - npm
 
 ### Installation
 
-1. **Install all dependencies** (root, client, and server):
-   ```bash
-   npm run install:all
-   ```
+```bash
+# Install all dependencies
+npm run install:all
+```
 
-   Or install manually:
-   ```bash
-   npm install
-   cd client && npm install && cd ..
-   cd server && npm install && cd ..
-   ```
+Or install manually:
+```bash
+npm install
+cd client && npm install && cd ..
+cd server && npm install && cd ..
+```
 
 ### Running the Application
 
-**Start both frontend and backend concurrently:**
+**Start both frontend and backend:**
 ```bash
 npm run dev
 ```
 
-This will start:
+This starts:
 - Frontend on `http://localhost:5173`
 - Backend on `http://localhost:4000`
 
-**Or run them separately:**
+**Or run separately:**
 
-Frontend only:
+Frontend:
 ```bash
 npm run dev:client
 ```
 
-Backend only:
+Backend:
 ```bash
 npm run dev:server
 ```
 
-## Usage
+## 📖 Usage
 
-1. **Add Job Links**:
-   - Use the "Paste Links" button to bulk import multiple URLs (one per line)
-   - Or use the single link input field at the top
+1. **Add Links**:
+   - Single link: Use the form at the top
+   - Bulk import: Click "Paste Links" button
+   - Supports "Title|URL" format
 
 2. **Manage Applications**:
-   - Click "Edit" to update company, role title, and notes
-   - Use the status dropdown to change application status
-   - Set priority levels (LOW, MEDIUM, HIGH)
-   - Use quick action buttons: "Mark Applied", "Mark TODO", "Archive", "Delete"
+   - Click fields to edit inline (company, role, location, URL)
+   - Use dropdowns to change status and priority
+   - Click "Notes" to add detailed notes
+   - Click links to open in new tab
 
 3. **Filter & Search**:
-   - Use the status filter dropdown to show specific statuses
-   - Use the search box to find applications by company, role, notes, or URL
+   - Filter by status using the dropdown
+   - Search across all fields using the search box
 
-4. **Delete Applications**:
-   - **Archive (Soft Delete)**: Marks the application as ARCHIVED but keeps it in the system
-   - **Delete (Hard Delete)**: Permanently removes the application from the Excel file
+4. **Actions**:
+   - **Clear Link**: Removes only the URL and title
+   - **Archive**: Marks as ARCHIVED
+   - **Delete**: Permanently removes the application
 
-## Data Model
+## 📊 Data Model
 
-Each application record contains:
+Each application contains:
 
 - `id`: Unique UUID
 - `url`: Job application link
+- `linkTitle`: Optional title for the link
 - `company`: Company name (optional)
 - `roleTitle`: Job title (optional)
 - `location`: Job location (optional)
 - `status`: TODO | APPLIED | INTERVIEW | OFFER | REJECTED | ARCHIVED
 - `priority`: LOW | MEDIUM | HIGH
 - `notes`: Free-form notes (optional)
+- `appliedDate`: Auto-set when status → APPLIED
+- `interviewDate`: Auto-set when status → INTERVIEW
+- `offerDate`: Auto-set when status → OFFER
+- `rejectedDate`: Auto-set when status → REJECTED
 - `createdAt`: ISO timestamp
 - `updatedAt`: ISO timestamp
 
-## API Endpoints
+## 🔌 API Endpoints
 
-- `GET /api/applications` - Get all applications (with optional `?status=` and `?search=` query params)
-- `POST /api/applications/links` - Create applications from an array of URLs
+- `GET /api/applications` - Get all applications (with filters)
+- `GET /api/applications/:id` - Get single application
+- `POST /api/applications/links` - Create applications from URLs
 - `PATCH /api/applications/:id` - Update an application
-- `DELETE /api/applications/:id` - Soft delete (archive) an application
-- `DELETE /api/applications/:id/hard` - Hard delete (permanently remove) an application
+- `DELETE /api/applications/:id` - Archive (soft delete)
+- `DELETE /api/applications/:id/hard` - Permanently delete
+- `DELETE /api/applications/:id/clear-link` - Clear link only
+- `GET /api/applications/stats` - Get statistics
+- `GET /api/applications/excel-path` - Get storage path
+- `POST /api/applications/restore` - Restore Excel file
 
-## Excel File
+## 🚀 Deployment to Vercel
 
-The Excel file (`data/applications.xlsx`) is automatically created on first use. It contains a single sheet named "Applications" with a header row and all application data. The file is read and written atomically to ensure data consistency.
+1. Push code to GitHub
+2. Import to Vercel
+3. Set `BLOB_READ_WRITE_TOKEN` environment variable
+4. Enable Vercel Blob storage
+5. Deploy!
 
-## Development
+## 🎯 Improvements in This Version
 
-- Frontend uses Vite for fast HMR (Hot Module Replacement)
-- Backend uses `tsx` for TypeScript execution with watch mode
-- Both frontend and backend support TypeScript strict mode
+- ✅ Better error handling with custom error classes
+- ✅ Improved UI/UX with modern design
+- ✅ Custom React hooks for state management
+- ✅ Enhanced statistics dashboard
+- ✅ Better code organization and structure
+- ✅ Improved TypeScript types
+- ✅ Enhanced Excel service with better error recovery
+- ✅ Preview feature for bulk link import
+- ✅ Auto-refreshing statistics
+- ✅ Better loading states and user feedback
+- ✅ Improved API error handling
+- ✅ More robust data validation
 
-## Troubleshooting
-
-- **Port conflicts**: If ports 4000 or 5173 are in use, modify the ports in `server/src/index.ts` and `client/vite.config.ts`
-- **Excel file errors**: Ensure the `data/` directory has write permissions
-- **CORS issues**: Verify the CORS origin in `server/src/index.ts` matches your frontend URL
-
-## License
+## 📝 License
 
 MIT
-
