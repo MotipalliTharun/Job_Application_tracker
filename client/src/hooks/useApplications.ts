@@ -14,7 +14,6 @@ interface UseApplicationsOptions {
 }
 
 const CACHE_KEY = 'linkTracker_applications_cache';
-const CACHE_TIMESTAMP_KEY = 'linkTracker_applications_cache_timestamp';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface CachedData {
