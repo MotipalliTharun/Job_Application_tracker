@@ -235,15 +235,21 @@ export async function clearLink(id: string): Promise<Application> {
  */
 export async function getApplicationStats(): Promise<ApplicationStats> {
   try {
-    const applications = await getAllApplications(); // Use getAllApplications for error handling
+    console.log('[STATS SERVICE] Starting stats calculation...');
+    
+    // Use getAllApplications for error handling - it will return empty array or dummy app if needed
+    const applications = await getAllApplications();
+    
+    console.log('[STATS SERVICE] Loaded applications:', applications.length);
+    
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
     const recentApplications = applications.filter(
-      app => app.createdAt >= sevenDaysAgo
+      app => app.createdAt && app.createdAt >= sevenDaysAgo
     ).length;
 
-    return {
+    const stats: ApplicationStats = {
       total: applications.length,
       byStatus: {
         TODO: applications.filter(a => a.status === 'TODO').length,
@@ -260,10 +266,24 @@ export async function getApplicationStats(): Promise<ApplicationStats> {
       },
       recentApplications,
     };
+
+    console.log('[STATS SERVICE] Stats calculated successfully:', {
+      total: stats.total,
+      recent: stats.recentApplications,
+    });
+
+    return stats;
   } catch (error) {
-    console.error('Error in getApplicationStats:', error);
-    // Return empty stats instead of throwing
-    return {
+    console.error('[STATS SERVICE ERROR] Error in getApplicationStats:', error);
+    console.error('[STATS SERVICE ERROR] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
+    // Return empty stats instead of throwing - never throw from this function
+    const emptyStats: ApplicationStats = {
       total: 0,
       byStatus: {
         TODO: 0,
@@ -280,6 +300,8 @@ export async function getApplicationStats(): Promise<ApplicationStats> {
       },
       recentApplications: 0,
     };
+    
+    return emptyStats;
   }
 }
 
