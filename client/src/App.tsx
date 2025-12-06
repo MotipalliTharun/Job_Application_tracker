@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ApplicationStatus } from './types';
 import Layout from './components/Layout';
 import LinkForm from './components/LinkForm';
@@ -6,7 +6,6 @@ import FiltersBar from './components/FiltersBar';
 import ApplicationTable from './components/ApplicationTable';
 import BulkPasteModal from './components/BulkPasteModal';
 import StatsDashboard from './components/StatsDashboard';
-import TodoDashboard, { TodoDashboardRef } from './components/TodoDashboard';
 import { useApplications } from './hooks/useApplications';
 
 function App() {
@@ -14,7 +13,6 @@ function App() {
   const [search, setSearch] = useState('');
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const todoDashboardRef = useRef<TodoDashboardRef>(null);
 
   const {
     applications,
@@ -42,10 +40,6 @@ function App() {
       if (statusFilter !== 'ALL' && statusFilter !== 'TODO') {
         setStatusFilter('TODO');
       }
-      // Refresh TODO dashboard
-      if (todoDashboardRef.current) {
-        todoDashboardRef.current.refresh();
-      }
     } catch (err) {
       console.error('[APP ERROR] Failed to add link:', err);
       handleError(err instanceof Error ? err : new Error('Failed to add link'));
@@ -61,10 +55,6 @@ function App() {
       // Ensure we're showing TODO items (new links default to TODO)
       if (statusFilter !== 'ALL' && statusFilter !== 'TODO') {
         setStatusFilter('TODO');
-      }
-      // Refresh TODO dashboard
-      if (todoDashboardRef.current) {
-        todoDashboardRef.current.refresh();
       }
     } catch (err) {
       console.error('[APP ERROR] Failed to add links:', err);
@@ -129,15 +119,6 @@ function App() {
       <StatsDashboard />
 
       <LinkForm onAddLink={handleAddLink} />
-
-      {/* TODO Links Dashboard - Shows all TODO links, refreshes when links are added */}
-      <TodoDashboard 
-        ref={todoDashboardRef}
-        onRefresh={() => {
-          // Trigger refresh of main applications list if needed
-          console.log('[APP] TodoDashboard requested refresh');
-        }} 
-      />
 
       <FiltersBar
         statusFilter={statusFilter}

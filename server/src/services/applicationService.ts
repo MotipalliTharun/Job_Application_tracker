@@ -153,7 +153,11 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
   }
 
   if (newApps.length > 0) {
+    console.log('[CREATE LINKS] Saving', newApps.length, 'new application(s) to Excel...');
     await saveApplications([...existingApps, ...newApps]);
+    console.log('[CREATE LINKS] ✅ Successfully saved', newApps.length, 'application(s) to Excel');
+  } else {
+    console.log('[CREATE LINKS] No new applications to save (all were duplicates or invalid)');
   }
 
   return newApps;
@@ -209,7 +213,9 @@ export async function updateApplication(id: string, updates: Partial<Application
   }
 
   applications[index] = updatedApp;
+  console.log('[UPDATE] Saving updated application to Excel:', { id, updates: Object.keys(updates) });
   await saveApplications(applications);
+  console.log('[UPDATE] ✅ Successfully saved updated application to Excel');
 
   return updatedApp;
 }
@@ -218,13 +224,17 @@ export async function updateApplication(id: string, updates: Partial<Application
  * Soft delete (archive)
  */
 export async function softDeleteApplication(id: string): Promise<Application> {
-  return updateApplication(id, { status: 'ARCHIVED' });
+  console.log('[SOFT DELETE] Archiving application:', id);
+  const archived = await updateApplication(id, { status: 'ARCHIVED' });
+  console.log('[SOFT DELETE] ✅ Successfully archived application and saved to Excel');
+  return archived;
 }
 
 /**
  * Hard delete
  */
 export async function hardDeleteApplication(id: string): Promise<void> {
+  console.log('[HARD DELETE] Deleting application:', id);
   const applications = await loadApplications();
   const filtered = applications.filter(app => app.id !== id);
   
@@ -232,16 +242,18 @@ export async function hardDeleteApplication(id: string): Promise<void> {
     throw new ApplicationNotFoundError(id);
   }
   
+  console.log('[HARD DELETE] Saving', filtered.length, 'remaining application(s) to Excel...');
   await saveApplications(filtered);
+  console.log('[HARD DELETE] ✅ Successfully deleted application and saved to Excel');
 }
 
 /**
  * Clear link (remove URL and linkTitle only)
  */
 export async function clearLink(id: string): Promise<Application> {
-  console.log('[SERVICE] Clearing link for application:', id);
+  console.log('[CLEAR LINK] Clearing link for application:', id);
   const updated = await updateApplication(id, { url: '', linkTitle: undefined });
-  console.log('[SERVICE] Link cleared successfully:', { id, hasUrl: !!updated.url });
+  console.log('[CLEAR LINK] ✅ Successfully cleared link and saved to Excel:', { id, hasUrl: !!updated.url });
   return updated;
 }
 

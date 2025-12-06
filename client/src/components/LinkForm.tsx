@@ -51,16 +51,14 @@ export default function LinkForm({ onAddLink }: LinkFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-      <h2 className="text-lg font-semibold mb-4 text-gray-900">Add New Link</h2>
-      
+    <form onSubmit={handleSubmit} className="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             URL <span className="text-red-500">*</span>

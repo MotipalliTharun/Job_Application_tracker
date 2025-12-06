@@ -331,6 +331,34 @@ router.get('/excel-path', (req, res) => {
   });
 });
 
+// GET /api/applications/download
+router.get('/download', async (req, res) => {
+  try {
+    console.log('[API] GET /api/applications/download called');
+    const excel = await getExcelService();
+    
+    if (!excel || !excel.getExcelFileForDownload) {
+      throw new Error('Failed to load excelService module');
+    }
+
+    const buffer = await excel.getExcelFileForDownload();
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="applications_${new Date().toISOString().split('T')[0]}.xlsx"`);
+    res.setHeader('Content-Length', buffer.length);
+    
+    console.log('[API SUCCESS] Sending Excel file for download, size:', buffer.length, 'bytes');
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error('[API ERROR] Error downloading Excel file:', error);
+    return res.status(500).json({
+      error: 'Failed to download Excel file',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // POST /api/applications/restore
 router.post('/restore', upload.single('file'), async (req, res) => {
   try {
@@ -378,18 +406,19 @@ app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.url} not found`,
-    availableRoutes: [
-      'GET /',
-      'GET /:id',
-      'POST /links',
-      'PATCH /:id',
-      'DELETE /:id',
-      'DELETE /:id/hard',
-      'DELETE /:id/clear-link',
-      'GET /stats',
-      'GET /excel-path',
-      'POST /restore',
-    ],
+      availableRoutes: [
+        'GET /',
+        'GET /:id',
+        'POST /links',
+        'PATCH /:id',
+        'DELETE /:id',
+        'DELETE /:id/hard',
+        'DELETE /:id/clear-link',
+        'GET /stats',
+        'GET /excel-path',
+        'GET /download',
+        'POST /restore',
+      ],
   });
 });
 

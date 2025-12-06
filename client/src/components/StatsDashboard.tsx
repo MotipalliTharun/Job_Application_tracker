@@ -68,51 +68,25 @@ export default function StatsDashboard() {
   }
 
   return (
-    <div className="mb-6 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-gray-900">Statistics</h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-          <div className="text-sm font-medium text-blue-700 mb-1">Total Applications</div>
-          <div className="text-3xl font-bold text-blue-900">{stats.total}</div>
+    <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="text-xs font-medium text-blue-700 mb-1">Total</div>
+          <div className="text-2xl font-bold text-blue-900">{stats.total}</div>
         </div>
-        <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-          <div className="text-sm font-medium text-green-700 mb-1">Active (TODO + APPLIED)</div>
-          <div className="text-3xl font-bold text-green-900">
+        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="text-xs font-medium text-green-700 mb-1">Active</div>
+          <div className="text-2xl font-bold text-green-900">
             {stats.byStatus.TODO + stats.byStatus.APPLIED}
           </div>
         </div>
-        <div className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
-          <div className="text-sm font-medium text-yellow-700 mb-1">In Progress</div>
-          <div className="text-3xl font-bold text-yellow-900">{stats.byStatus.INTERVIEW}</div>
+        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="text-xs font-medium text-yellow-700 mb-1">Interview</div>
+          <div className="text-2xl font-bold text-yellow-900">{stats.byStatus.INTERVIEW}</div>
         </div>
-        <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-          <div className="text-sm font-medium text-purple-700 mb-1">Recent (7 days)</div>
-          <div className="text-3xl font-bold text-purple-900">{stats.recentApplications}</div>
-        </div>
-      </div>
-      
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 className="font-semibold mb-2 text-gray-700">By Status</h3>
-          <div className="space-y-2 text-sm">
-            {Object.entries(stats.byStatus).map(([status, count]) => (
-              <div key={status} className="flex justify-between items-center">
-                <span className="text-gray-600">{status}:</span>
-                <span className="font-semibold text-gray-900">{String(count)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <h3 className="font-semibold mb-2 text-gray-700">By Priority</h3>
-          <div className="space-y-2 text-sm">
-            {Object.entries(stats.byPriority).map(([priority, count]) => (
-              <div key={priority} className="flex justify-between items-center">
-                <span className="text-gray-600">{priority}:</span>
-                <span className="font-semibold text-gray-900">{String(count)}</span>
-              </div>
-            ))}
-          </div>
+        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="text-xs font-medium text-purple-700 mb-1">Recent</div>
+          <div className="text-2xl font-bold text-purple-900">{stats.recentApplications}</div>
         </div>
       </div>
     </div>

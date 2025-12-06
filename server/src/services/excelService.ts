@@ -320,10 +320,18 @@ export async function loadApplications(): Promise<Application[]> {
  */
 export async function saveApplications(applications: Application[]): Promise<void> {
   try {
+    console.log('[EXCEL SAVE] Starting save operation for', applications.length, 'application(s)...');
+    console.log('[EXCEL SAVE] Environment:', {
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+      storage: isVercel ? 'Vercel Blob' : 'Local Filesystem',
+    });
+
     const workbook = await ensureWorkbook();
     let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
     
     if (!worksheet) {
+      console.log('[EXCEL SAVE] Creating new worksheet');
       worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
       worksheet.addRow([
         'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
@@ -341,10 +349,12 @@ export async function saveApplications(applications: Application[]): Promise<voi
     // Clear existing data (keep header)
     const rowCount = worksheet.rowCount;
     if (rowCount > 1) {
+      console.log('[EXCEL SAVE] Clearing', rowCount - 1, 'existing row(s)');
       worksheet.spliceRows(2, rowCount - 1);
     }
 
     // Add applications
+    console.log('[EXCEL SAVE] Adding', applications.length, 'application(s) to worksheet...');
     for (const app of applications) {
       worksheet.addRow([
         app.id,
@@ -366,10 +376,24 @@ export async function saveApplications(applications: Application[]): Promise<voi
     }
 
     // Save to buffer
+    console.log('[EXCEL SAVE] Generating Excel buffer...');
     const buffer = await workbook.xlsx.writeBuffer();
+    const bufferSize = Buffer.from(buffer as ArrayBuffer).length;
+    console.log('[EXCEL SAVE] Buffer generated, size:', bufferSize, 'bytes');
+    
+    // Save to storage (Blob or filesystem)
+    console.log('[EXCEL SAVE] Saving to storage...');
     await saveExcelFileBuffer(Buffer.from(buffer as ArrayBuffer));
+    console.log('[EXCEL SAVE] ✅ Successfully saved', applications.length, 'application(s) to Excel file');
   } catch (error) {
-    console.error('Error saving applications:', error);
+    console.error('[EXCEL SAVE ERROR] Failed to save applications:', error);
+    console.error('[EXCEL SAVE ERROR] Details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      applicationCount: applications.length,
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
     throw new ExcelServiceError(
       `Failed to save applications: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error instanceof Error ? error : undefined
@@ -389,6 +413,65 @@ export async function restoreExcelFile(fileBuffer: Buffer | ArrayBuffer): Promis
     console.error('Error restoring Excel file:', error);
     throw new ExcelServiceError(
       `Failed to restore Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error instanceof Error ? error : undefined
+    );
+  }
+}
+
+/**
+ * Get Excel file buffer for download
+ */
+export async function getExcelFileForDownload(): Promise<Buffer> {
+  try {
+    console.log('[EXCEL DOWNLOAD] Preparing Excel file for download...');
+    
+    // Load current applications and create a fresh workbook
+    const applications = await loadApplications();
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
+    
+    // Add header row
+    worksheet.addRow([
+      'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
+      'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
+      'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
+    ]);
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    // Add application rows
+    for (const app of applications) {
+      worksheet.addRow([
+        app.id,
+        app.url,
+        app.linkTitle || '',
+        app.company || '',
+        app.roleTitle || '',
+        app.location || '',
+        app.status,
+        app.priority,
+        app.notes || '',
+        app.appliedDate || '',
+        app.interviewDate || '',
+        app.offerDate || '',
+        app.rejectedDate || '',
+        app.createdAt,
+        app.updatedAt,
+      ]);
+    }
+    
+    // Generate buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    console.log('[EXCEL DOWNLOAD] Excel file prepared, size:', Buffer.from(buffer as ArrayBuffer).length, 'bytes');
+    return Buffer.from(buffer as ArrayBuffer);
+  } catch (error) {
+    console.error('[EXCEL DOWNLOAD ERROR] Failed to prepare Excel file:', error);
+    throw new ExcelServiceError(
+      `Failed to prepare Excel file for download: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error instanceof Error ? error : undefined
     );
   }
