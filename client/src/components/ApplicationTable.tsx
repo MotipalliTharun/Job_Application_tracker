@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Application, ApplicationStatus, ApplicationPriority } from '../types';
-import StatusBadge from './StatusBadge';
 import NotesModal from './NotesModal';
 
 interface ApplicationTableProps {

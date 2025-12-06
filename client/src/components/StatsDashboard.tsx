@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react';
-import { ApplicationStats } from '../types';
 import { api } from '../utils/api';
+
+interface ApplicationStats {
+  total: number;
+  byStatus: {
+    TODO: number;
+    APPLIED: number;
+    INTERVIEW: number;
+    OFFER: number;
+    REJECTED: number;
+    ARCHIVED: number;
+  };
+  byPriority: {
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+  };
+  recentApplications: number;
+}
 
 export default function StatsDashboard() {
   const [stats, setStats] = useState<ApplicationStats | null>(null);
@@ -81,7 +98,7 @@ export default function StatsDashboard() {
             {Object.entries(stats.byStatus).map(([status, count]) => (
               <div key={status} className="flex justify-between items-center">
                 <span className="text-gray-600">{status}:</span>
-                <span className="font-semibold text-gray-900">{count}</span>
+                <span className="font-semibold text-gray-900">{String(count)}</span>
               </div>
             ))}
           </div>
@@ -92,7 +109,7 @@ export default function StatsDashboard() {
             {Object.entries(stats.byPriority).map(([priority, count]) => (
               <div key={priority} className="flex justify-between items-center">
                 <span className="text-gray-600">{priority}:</span>
-                <span className="font-semibold text-gray-900">{count}</span>
+                <span className="font-semibold text-gray-900">{String(count)}</span>
               </div>
             ))}
           </div>
