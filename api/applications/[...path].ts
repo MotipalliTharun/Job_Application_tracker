@@ -42,10 +42,12 @@ router.use((req, res, next) => {
 // GET /api/applications
 router.get('/', async (req, res) => {
   try {
-    console.log('GET /api/applications called', {
+    console.log('[API] GET /api/applications called', {
       query: req.query,
       isVercel: !!process.env.VERCEL,
+      vercelEnv: process.env.VERCEL_ENV,
       hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+      blobTokenLength: process.env.BLOB_READ_WRITE_TOKEN?.length || 0,
     });
     
     const { status, priority, search, startDate, endDate } = req.query;
@@ -325,6 +327,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // Log environment info for debugging
+  if (process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+    console.warn('[ENV WARNING] Running on Vercel but BLOB_READ_WRITE_TOKEN is not set. Data will not persist.');
   }
 
   try {
