@@ -84,27 +84,43 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
   const updateApplication = useCallback(async (id: string, updates: Partial<Application>) => {
     try {
+      console.log('[HOOK] Updating application:', { id, updates: Object.keys(updates) });
       await api.patch(`/${id}`, updates);
+      console.log('[HOOK] Update successful, refreshing applications...');
+      // Small delay to ensure Excel is saved
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after update');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to update application:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to update application');
     }
   }, [fetchApplications]);
 
   const archiveApplication = useCallback(async (id: string) => {
     try {
+      console.log('[HOOK] Archiving application:', id);
       await api.delete(`/${id}`);
+      console.log('[HOOK] Archive successful, refreshing applications...');
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after archive');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to archive application:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to archive application');
     }
   }, [fetchApplications]);
 
   const deleteApplication = useCallback(async (id: string) => {
     try {
+      console.log('[HOOK] Deleting application:', id);
       await api.delete(`/${id}/hard`);
+      console.log('[HOOK] Delete successful, refreshing applications...');
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchApplications();
+      console.log('[HOOK] Applications refreshed after delete');
     } catch (err) {
+      console.error('[HOOK ERROR] Failed to delete application:', err);
       throw new Error(err instanceof Error ? err.message : 'Failed to delete application');
     }
   }, [fetchApplications]);

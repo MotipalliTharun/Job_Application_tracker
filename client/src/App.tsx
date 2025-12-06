@@ -105,14 +105,20 @@ function App() {
   return (
     <Layout>
       {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-          {error}
+        <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 text-red-700 rounded-xl">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <span className="font-medium">{error}</span>
+          </div>
         </div>
       )}
 
       {fetchError && (
-        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg">
-          {fetchError}
+        <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-200 text-yellow-700 rounded-xl">
+          <div className="flex items-center gap-2">
+            <span>ℹ️</span>
+            <span className="font-medium">{fetchError}</span>
+          </div>
         </div>
       )}
 
@@ -129,9 +135,9 @@ function App() {
       />
 
       {loading ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading applications...</p>
+        <div className="text-center py-16 bg-white rounded-xl shadow-sm border-2 border-gray-200">
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-200 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading your applications...</p>
         </div>
       ) : (
         <ApplicationTable

@@ -68,25 +68,37 @@ export default function StatsDashboard() {
   }
 
   return (
-    <div className="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="text-xs font-medium text-blue-700 mb-1">Total</div>
-          <div className="text-2xl font-bold text-blue-900">{stats.total}</div>
-        </div>
-        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-          <div className="text-xs font-medium text-green-700 mb-1">Active</div>
-          <div className="text-2xl font-bold text-green-900">
-            {stats.byStatus.TODO + stats.byStatus.APPLIED}
+    <div className="mb-6 bg-white rounded-xl shadow-sm border-2 border-gray-200 p-4">
+      <div className="flex flex-wrap gap-4 justify-center">
+        <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+          <span className="text-lg">📊</span>
+          <div>
+            <div className="text-xs text-gray-600">Total</div>
+            <div className="text-xl font-bold text-gray-900">{stats.total}</div>
           </div>
         </div>
-        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="text-xs font-medium text-yellow-700 mb-1">Interview</div>
-          <div className="text-2xl font-bold text-yellow-900">{stats.byStatus.INTERVIEW}</div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-lg">
+          <span className="text-lg">✅</span>
+          <div>
+            <div className="text-xs text-blue-700">Active</div>
+            <div className="text-xl font-bold text-blue-900">
+              {stats.byStatus.TODO + stats.byStatus.APPLIED}
+            </div>
+          </div>
         </div>
-        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-          <div className="text-xs font-medium text-purple-700 mb-1">Recent</div>
-          <div className="text-2xl font-bold text-purple-900">{stats.recentApplications}</div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-100 rounded-lg">
+          <span className="text-lg">💼</span>
+          <div>
+            <div className="text-xs text-yellow-700">Interview</div>
+            <div className="text-xl font-bold text-yellow-900">{stats.byStatus.INTERVIEW}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 rounded-lg">
+          <span className="text-lg">🆕</span>
+          <div>
+            <div className="text-xs text-purple-700">Recent</div>
+            <div className="text-xl font-bold text-purple-900">{stats.recentApplications}</div>
+          </div>
         </div>
       </div>
     </div>
