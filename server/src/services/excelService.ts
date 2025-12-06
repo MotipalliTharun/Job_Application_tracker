@@ -317,48 +317,39 @@ export async function loadApplications(): Promise<Application[]> {
 
 /**
  * Save applications to Excel
+ * This function directly writes to the Excel file (Blob or filesystem)
+ * It replaces all existing data with the new data
  */
 export async function saveApplications(applications: Application[]): Promise<void> {
   try {
-    console.log('[EXCEL SAVE] Starting save operation for', applications.length, 'application(s)...');
-    console.log('[EXCEL SAVE] Environment:', {
-      isVercel,
-      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
-      storage: isVercel ? 'Vercel Blob' : 'Local Filesystem',
-    });
+    console.log('[EXCEL] Writing', applications.length, 'application(s) to Excel file...');
+    console.log('[EXCEL] Storage:', isVercel ? 'Vercel Blob' : 'Local Filesystem');
 
-    const workbook = await ensureWorkbook();
-    let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
+    // Create a fresh workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
     
-    if (!worksheet) {
-      console.log('[EXCEL SAVE] Creating new worksheet');
-      worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
-      worksheet.addRow([
-        'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
-        'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
-        'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
-      ]);
-      worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
-    }
+    // Add header row
+    worksheet.addRow([
+      'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
+      'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
+      'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
+    ]);
+    
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
 
-    // Clear existing data (keep header)
-    const rowCount = worksheet.rowCount;
-    if (rowCount > 1) {
-      console.log('[EXCEL SAVE] Clearing', rowCount - 1, 'existing row(s)');
-      worksheet.spliceRows(2, rowCount - 1);
-    }
-
-    // Add applications
-    console.log('[EXCEL SAVE] Adding', applications.length, 'application(s) to worksheet...');
+    // Add all application rows
     for (const app of applications) {
       worksheet.addRow([
         app.id,
-        app.url,
+        app.url || '',
         app.linkTitle || '',
         app.company || '',
         app.roleTitle || '',
@@ -375,27 +366,24 @@ export async function saveApplications(applications: Application[]): Promise<voi
       ]);
     }
 
-    // Save to buffer
-    console.log('[EXCEL SAVE] Generating Excel buffer...');
+    // Generate Excel buffer
     const buffer = await workbook.xlsx.writeBuffer();
     const bufferSize = Buffer.from(buffer as ArrayBuffer).length;
-    console.log('[EXCEL SAVE] Buffer generated, size:', bufferSize, 'bytes');
+    console.log('[EXCEL] Generated Excel file, size:', bufferSize, 'bytes');
     
-    // Save to storage (Blob or filesystem)
-    console.log('[EXCEL SAVE] Saving to storage...');
+    // Write directly to storage (Blob or filesystem)
     await saveExcelFileBuffer(Buffer.from(buffer as ArrayBuffer));
-    console.log('[EXCEL SAVE] ✅ Successfully saved', applications.length, 'application(s) to Excel file');
+    console.log('[EXCEL] ✅ Successfully wrote', applications.length, 'application(s) to Excel file');
   } catch (error) {
-    console.error('[EXCEL SAVE ERROR] Failed to save applications:', error);
-    console.error('[EXCEL SAVE ERROR] Details:', {
+    console.error('[EXCEL ERROR] Failed to write to Excel file:', error);
+    console.error('[EXCEL ERROR] Details:', {
       message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
       applicationCount: applications.length,
       isVercel,
       hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     });
     throw new ExcelServiceError(
-      `Failed to save applications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to write to Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error instanceof Error ? error : undefined
     );
   }

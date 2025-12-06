@@ -1,6 +1,21 @@
 /**
- * Application Service
- * Business logic for managing job applications
+ * Application Service - Todo-Style Link Tracker
+ * 
+ * This service manages job application links stored in an Excel file.
+ * All operations follow a simple pattern:
+ * 1. Load from Excel
+ * 2. Modify data
+ * 3. Save back to Excel
+ * 
+ * Key Features:
+ * - All operations directly modify the Excel file
+ * - Duplicate prevention based on normalized URLs
+ * - Automatic deduplication when loading
+ * - Status updates with automatic date tracking
+ * 
+ * Excel File Structure:
+ * - Stored in: data/applications.xlsx (local) or Vercel Blob (production)
+ * - Columns: id, url, linkTitle, company, roleTitle, location, status, priority, notes, dates
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -64,29 +79,35 @@ function deduplicateApplications(applications: Application[]): Application[] {
 
 /**
  * Get all applications with optional filtering
+ * Loads directly from Excel file
  */
 export async function getAllApplications(filters?: ApplicationFilters): Promise<Application[]> {
   try {
+    // Load applications directly from Excel
     let applications = await loadApplications();
     const originalCount = applications.length;
     
     // Remove duplicates based on normalized URLs
     applications = deduplicateApplications(applications);
     
-    // If duplicates were removed, save the cleaned list
+    // If duplicates were found and removed, save cleaned list back to Excel
     if (applications.length < originalCount) {
-      console.log(`[DEDUPE] Saving deduplicated applications (removed ${originalCount - applications.length} duplicates)`);
+      const duplicatesRemoved = originalCount - applications.length;
+      console.log(`[LOAD] Found ${duplicatesRemoved} duplicate(s), cleaning Excel file...`);
       await saveApplications(applications);
+      console.log(`[LOAD] ✅ Cleaned Excel file, removed ${duplicatesRemoved} duplicate(s)`);
     }
     
-    // If no applications exist, create a dummy one
+    // If no applications exist, create a dummy one and save to Excel
     if (applications.length === 0) {
+      console.log('[LOAD] No applications found, creating sample application in Excel...');
       try {
         const dummyApp = createDummyApplication();
         await saveApplications([dummyApp]);
+        console.log('[LOAD] ✅ Created sample application in Excel');
         return [dummyApp];
       } catch (saveError) {
-        console.error('Failed to save dummy application:', saveError);
+        console.error('[LOAD ERROR] Failed to save sample application:', saveError);
         // Return the dummy app anyway, even if save failed
         return [createDummyApplication()];
       }
@@ -150,19 +171,21 @@ export async function getAllApplications(filters?: ApplicationFilters): Promise<
 
 /**
  * Create applications from links
+ * Directly modifies Excel file - loads, adds new links, saves back
  */
 export async function createApplicationsFromLinks(links: string[]): Promise<Application[]> {
   if (!Array.isArray(links) || links.length === 0) {
     throw new InvalidApplicationDataError('Links must be a non-empty array');
   }
 
+  // Load current applications from Excel
   const existingApps = await loadApplications();
   const now = new Date().toISOString();
   const newApps: Application[] = [];
 
   for (const link of links) {
     if (typeof link !== 'string' || !link.trim()) {
-      console.log('[CREATE LINKS] Skipping empty or invalid link:', link);
+      console.log('[ADD LINK] Skipping empty or invalid link:', link);
       continue;
     }
 
@@ -185,7 +208,7 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
 
     // Normalize URL - add https:// if missing
     if (!url || !url.trim()) {
-      console.log('[CREATE LINKS] Skipping link with empty URL:', link);
+      console.log('[ADD LINK] Skipping link with empty URL:', link);
       continue;
     }
     
@@ -195,10 +218,10 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
     
     if (normalizedUrl !== url) {
       url = normalizedUrl;
-      console.log('[CREATE LINKS] Normalized URL:', originalUrl, '->', url);
+      console.log('[ADD LINK] Normalized URL:', originalUrl, '->', url);
     }
     
-    // Skip if URL already exists (normalize existing URLs for comparison)
+    // Check for duplicates by comparing normalized URLs
     const isDuplicate = existingApps.some(app => {
       if (!app.url || !app.url.trim()) return false;
       const normalizedExisting = normalizeUrlForComparison(app.url);
@@ -206,12 +229,13 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
     });
     
     if (isDuplicate) {
-      console.log('[CREATE LINKS] Skipping duplicate URL:', url);
+      console.log('[ADD LINK] ⚠️ Duplicate URL skipped:', url);
       continue;
     }
     
-    console.log('[CREATE LINKS] Creating application for URL:', url, 'Title:', linkTitle);
+    console.log('[ADD LINK] ✅ Creating new application:', { url, linkTitle });
 
+    // Create new application
     newApps.push({
       id: uuidv4(),
       url,
@@ -223,12 +247,14 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
     });
   }
 
+  // Save to Excel: Load -> Add new -> Save
   if (newApps.length > 0) {
-    console.log('[CREATE LINKS] Saving', newApps.length, 'new application(s) to Excel...');
-    await saveApplications([...existingApps, ...newApps]);
-    console.log('[CREATE LINKS] ✅ Successfully saved', newApps.length, 'application(s) to Excel');
+    console.log('[ADD LINK] 📝 Writing', newApps.length, 'new link(s) to Excel file...');
+    const allApps = [...existingApps, ...newApps];
+    await saveApplications(allApps);
+    console.log('[ADD LINK] ✅ Successfully saved', newApps.length, 'new link(s) to Excel');
   } else {
-    console.log('[CREATE LINKS] No new applications to save (all were duplicates or invalid)');
+    console.log('[ADD LINK] ℹ️ No new links to add (all were duplicates or invalid)');
   }
 
   return newApps;
@@ -250,25 +276,29 @@ export async function getApplicationById(id: string): Promise<Application> {
 
 /**
  * Update application
+ * Directly modifies Excel file - loads, updates, saves back
  */
 export async function updateApplication(id: string, updates: Partial<Application>): Promise<Application> {
+  // Load current applications from Excel
   const applications = await loadApplications();
   const index = applications.findIndex(app => app.id === id);
 
   if (index === -1) {
-    throw new ApplicationNotFoundError(id);
+    throw new ApplicationNotFoundError(`Application with ID ${id} not found`);
   }
 
   const app = applications[index];
+  const now = new Date().toISOString();
+  
+  // Build updated application
   const updatedApp: Application = {
     ...app,
     ...updates,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
 
   // Auto-set dates based on status changes
-  if (updates.status) {
-    const now = new Date().toISOString();
+  if (updates.status && updates.status !== app.status) {
     if (updates.status === 'APPLIED' && !app.appliedDate) {
       updatedApp.appliedDate = now;
     }
@@ -283,48 +313,74 @@ export async function updateApplication(id: string, updates: Partial<Application
     }
   }
 
+  // If URL is being updated, normalize it and check for duplicates
+  if (updates.url && updates.url.trim()) {
+    const normalizedUrl = normalizeUrlForComparison(updates.url);
+    const isDuplicate = applications.some((app, idx) => {
+      if (idx === index || !app.url || !app.url.trim()) return false;
+      const normalizedExisting = normalizeUrlForComparison(app.url);
+      return normalizedExisting === normalizedUrl;
+    });
+    
+    if (isDuplicate) {
+      throw new InvalidApplicationDataError(`URL already exists: ${updates.url}`);
+    }
+    
+    updatedApp.url = normalizedUrl;
+  }
+
+  // Update in array
   applications[index] = updatedApp;
-  console.log('[UPDATE] Saving updated application to Excel:', { id, updates: Object.keys(updates) });
+
+  // Save to Excel: Load -> Update -> Save
+  console.log('[UPDATE] 📝 Writing updated application to Excel file:', { id, fields: Object.keys(updates) });
   await saveApplications(applications);
-  console.log('[UPDATE] ✅ Successfully saved updated application to Excel');
+  console.log('[UPDATE] ✅ Successfully updated and saved to Excel');
 
   return updatedApp;
 }
 
 /**
  * Soft delete (archive)
+ * Directly modifies Excel file - loads, updates status to ARCHIVED, saves back
  */
 export async function softDeleteApplication(id: string): Promise<Application> {
-  console.log('[SOFT DELETE] Archiving application:', id);
+  console.log('[ARCHIVE] Archiving application:', id);
   const archived = await updateApplication(id, { status: 'ARCHIVED' });
-  console.log('[SOFT DELETE] ✅ Successfully archived application and saved to Excel');
+  console.log('[ARCHIVE] ✅ Successfully archived and saved to Excel');
   return archived;
 }
 
 /**
  * Hard delete
+ * Directly modifies Excel file - loads, removes application, saves back
  */
 export async function hardDeleteApplication(id: string): Promise<void> {
-  console.log('[HARD DELETE] Deleting application:', id);
+  console.log('[DELETE] Deleting application from Excel:', id);
+  
+  // Load current applications from Excel
   const applications = await loadApplications();
+  const beforeCount = applications.length;
   const filtered = applications.filter(app => app.id !== id);
   
-  if (filtered.length === applications.length) {
-    throw new ApplicationNotFoundError(id);
+  if (filtered.length === beforeCount) {
+    throw new ApplicationNotFoundError(`Application with ID ${id} not found`);
   }
   
-  console.log('[HARD DELETE] Saving', filtered.length, 'remaining application(s) to Excel...');
+  // Save to Excel: Load -> Remove -> Save
+  console.log('[DELETE] 📝 Writing', filtered.length, 'remaining application(s) to Excel file...');
   await saveApplications(filtered);
-  console.log('[HARD DELETE] ✅ Successfully deleted application and saved to Excel');
+  console.log('[DELETE] ✅ Successfully deleted application from Excel');
 }
 
 /**
  * Clear link (remove URL and linkTitle only)
+ * Directly modifies Excel file - loads, clears URL, saves back
  */
 export async function clearLink(id: string): Promise<Application> {
-  console.log('[CLEAR LINK] Clearing link for application:', id);
+  console.log('[CLEAR LINK] Clearing link from Excel:', id);
   const updated = await updateApplication(id, { url: '', linkTitle: undefined });
-  console.log('[CLEAR LINK] ✅ Successfully cleared link and saved to Excel:', { id, hasUrl: !!updated.url });
+  console.log('[CLEAR LINK] ✅ Successfully cleared link and saved to Excel');
   return updated;
 }
 
