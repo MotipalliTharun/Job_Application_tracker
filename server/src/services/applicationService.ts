@@ -2,13 +2,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { Application } from '../models/Application.js';
 import { loadApplications, saveApplications } from './excelService.js';
 
+// Get all applications
 export async function getAllApplications(): Promise<Application[]> {
   try {
     const applications = await loadApplications();
     
-    // If no applications exist, create a dummy one to help users get started
     if (applications.length === 0) {
-      console.log('No applications found. Creating a dummy application to get started...');
       const dummyApp: Application = {
         id: uuidv4(),
         url: 'https://example.com/job-posting',
@@ -18,22 +17,19 @@ export async function getAllApplications(): Promise<Application[]> {
         location: 'Remote',
         status: 'TODO',
         priority: 'MEDIUM',
-        notes: 'This is a sample application. You can edit or delete it. Start by adding your own job links!',
+        notes: 'This is a sample application. You can edit or delete it!',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       
       await saveApplications([dummyApp]);
-      console.log('Dummy application created successfully');
       return [dummyApp];
     }
     
     return applications;
   } catch (error) {
     console.error('Error in getAllApplications:', error);
-    // If there's an error loading, try to create a fresh file with a dummy app
     try {
-      console.log('Attempting to recover by creating a new file with dummy application...');
       const dummyApp: Application = {
         id: uuidv4(),
         url: 'https://example.com/job-posting',
@@ -43,119 +39,110 @@ export async function getAllApplications(): Promise<Application[]> {
         location: 'Remote',
         status: 'TODO',
         priority: 'MEDIUM',
-        notes: 'This is a sample application. You can edit or delete it. Start by adding your own job links!',
+        notes: 'This is a sample application. You can edit or delete it!',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      
       await saveApplications([dummyApp]);
-      console.log('Recovery successful - dummy application created');
       return [dummyApp];
     } catch (recoveryError) {
       console.error('Recovery failed:', recoveryError);
-      // Return empty array instead of throwing to prevent function crash
-      // This allows the app to continue even if Excel file operations fail
-      console.warn('Returning empty array due to recovery failure');
       return [];
     }
   }
 }
 
+// Create applications from links
 export async function createApplicationsFromLinks(links: string[]): Promise<Application[]> {
   const existingApps = await loadApplications();
   const now = new Date().toISOString();
-  
-  const newApplications: Application[] = links
-    .map(link => link.trim())
-    .filter(link => link.length > 0)
-    .map(link => {
-      // Support format: "Title|URL" or just "URL"
-      const parts = link.split('|');
-      const url = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-      const linkTitle = parts.length > 1 ? parts[0].trim() : undefined;
-      
-      return {
-        id: uuidv4(),
-        url,
-        linkTitle,
-        company: undefined,
-        roleTitle: undefined,
-        location: undefined,
-        status: 'TODO' as const,
-        priority: 'MEDIUM' as const,
-        notes: undefined,
-        createdAt: now,
-        updatedAt: now,
-      };
+  const newApps: Application[] = [];
+
+  for (const link of links) {
+    // Parse "Title|URL" format
+    const parts = link.split('|').map(s => s.trim());
+    let url = link;
+    let linkTitle: string | undefined;
+
+    if (parts.length === 2 && parts[1].startsWith('http')) {
+      linkTitle = parts[0] || undefined;
+      url = parts[1];
+    } else if (link.includes('http')) {
+      // Extract URL from text
+      const urlMatch = link.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        url = urlMatch[0];
+        linkTitle = link.substring(0, link.indexOf(url)).trim() || undefined;
+      }
+    }
+
+    // Skip if URL already exists
+    if (existingApps.some(app => app.url === url)) {
+      continue;
+    }
+
+    newApps.push({
+      id: uuidv4(),
+      url,
+      linkTitle,
+      status: 'TODO',
+      priority: 'MEDIUM',
+      createdAt: now,
+      updatedAt: now,
     });
-  
-  // Merge new links with existing applications
-  // This preserves all existing modifications (company, role, notes, status, etc.)
-  // Only adds new links that don't already exist (by URL)
-  const existingUrls = new Set(existingApps.map(app => app.url.toLowerCase().trim()));
-  const uniqueNewApps = newApplications.filter(app => {
-    const urlLower = app.url.toLowerCase().trim();
-    return urlLower && !existingUrls.has(urlLower);
-  });
-  
-  const allApplications = [...existingApps, ...uniqueNewApps];
-  await saveApplications(allApplications);
-  
-  console.log(`Added ${uniqueNewApps.length} new links (${newApplications.length - uniqueNewApps.length} duplicates skipped)`);
-  
-  return uniqueNewApps;
+  }
+
+  if (newApps.length > 0) {
+    await saveApplications([...existingApps, ...newApps]);
+  }
+
+  return newApps;
 }
 
-export async function updateApplication(
-  id: string,
-  updates: Partial<Application>
-): Promise<Application> {
+// Update application
+export async function updateApplication(id: string, updates: Partial<Application>): Promise<Application> {
   const applications = await loadApplications();
   const index = applications.findIndex(app => app.id === id);
-  
+
   if (index === -1) {
     throw new Error(`Application with id ${id} not found`);
   }
-  
-  const current = applications[index];
-  const now = new Date().toISOString();
-  
-  // Auto-set dates based on status changes
-  const finalUpdates: Partial<Application> = { ...updates };
-  
-  // If status is changing to APPLIED and appliedDate is not set, set it
-  if (updates.status === 'APPLIED' && current.status !== 'APPLIED' && !updates.appliedDate) {
-    finalUpdates.appliedDate = now;
-  }
-  
-  // If status is changing to INTERVIEW and interviewDate is not set, set it
-  if (updates.status === 'INTERVIEW' && current.status !== 'INTERVIEW' && !updates.interviewDate) {
-    finalUpdates.interviewDate = now;
-  }
-  
-  const updated = {
-    ...current,
-    ...finalUpdates,
-    id, // Ensure ID doesn't change
-    updatedAt: now,
+
+  const app = applications[index];
+  const updatedApp: Application = {
+    ...app,
+    ...updates,
+    updatedAt: new Date().toISOString(),
   };
-  
-  applications[index] = updated;
-  
-  // Save to Excel file immediately
+
+  // Auto-set dates based on status
+  if (updates.status === 'APPLIED' && !app.appliedDate) {
+    updatedApp.appliedDate = new Date().toISOString();
+  }
+  if (updates.status === 'INTERVIEW' && !app.interviewDate) {
+    updatedApp.interviewDate = new Date().toISOString();
+  }
+
+  applications[index] = updatedApp;
   await saveApplications(applications);
-  console.log(`Application ${id} updated and saved to Excel file`);
-  
-  return updated;
+
+  return updatedApp;
 }
 
+// Soft delete (archive)
 export async function softDeleteApplication(id: string): Promise<Application> {
-  return await updateApplication(id, { status: 'ARCHIVED' });
+  return updateApplication(id, { status: 'ARCHIVED' });
 }
 
+// Hard delete
 export async function hardDeleteApplication(id: string): Promise<void> {
   const applications = await loadApplications();
   const filtered = applications.filter(app => app.id !== id);
   await saveApplications(filtered);
+}
+
+// Clear link (remove URL and linkTitle only)
+export async function clearLink(id: string): Promise<Application> {
+  return updateApplication(id, { url: '', linkTitle: undefined });
 }
 
