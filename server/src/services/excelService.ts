@@ -56,39 +56,53 @@ if (!isVercel) {
  * Get Excel file buffer from Vercel Blob or local file system
  */
 async function getExcelFileBuffer(): Promise<Buffer | null> {
-  if (isVercel) {
-    try {
-      const blobModule = await getBlobStorage();
-      if (!blobModule) return null;
-      
-      // Use head to check if file exists, then getDownloadUrl to fetch it
+  try {
+    if (isVercel) {
       try {
-        if (blobModule.head) {
-          const blob = await blobModule.head(BLOB_FILE_NAME);
-          if (blob && blob.url) {
-            const response = await fetch(blob.url);
-            const arrayBuffer = await response.arrayBuffer();
-            // Convert ArrayBuffer to proper Node.js Buffer
-            return Buffer.from(new Uint8Array(arrayBuffer));
+        const blobModule = await getBlobStorage();
+        if (!blobModule) {
+          console.log('Blob storage module not available');
+          return null;
+        }
+        
+        // Use head to check if file exists, then getDownloadUrl to fetch it
+        try {
+          if (blobModule.head) {
+            const blob = await blobModule.head(BLOB_FILE_NAME);
+            if (blob && blob.url) {
+              const response = await fetch(blob.url);
+              if (!response.ok) {
+                console.log('Blob file not found or inaccessible');
+                return null;
+              }
+              const arrayBuffer = await response.arrayBuffer();
+              // Convert ArrayBuffer to proper Node.js Buffer
+              return Buffer.from(new Uint8Array(arrayBuffer));
+            }
+          }
+        } catch (error: any) {
+          // File doesn't exist (BlobNotFoundError is expected)
+          if (error.name !== 'BlobNotFoundError' && error.name !== 'NotFoundError') {
+            console.warn('Error fetching blob:', error);
+          } else {
+            console.log('Blob file not found, will create new one');
           }
         }
-      } catch (error: any) {
-        // File doesn't exist (BlobNotFoundError is expected)
-        if (error.name !== 'BlobNotFoundError') {
-          console.warn('Error fetching blob:', error);
-        }
+        return null;
+      } catch (error) {
+        // File doesn't exist yet, return null
+        console.log('Blob file not found, will create new one:', error instanceof Error ? error.message : 'Unknown error');
+        return null;
+      }
+    } else {
+      if (fs.existsSync(EXCEL_FILE_PATH)) {
+        return fs.readFileSync(EXCEL_FILE_PATH);
       }
       return null;
-    } catch (error) {
-      // File doesn't exist yet, return null
-      console.log('Blob file not found, will create new one');
-      return null;
     }
-  } else {
-    if (fs.existsSync(EXCEL_FILE_PATH)) {
-      return fs.readFileSync(EXCEL_FILE_PATH);
-    }
-    return null;
+  } catch (error) {
+    console.error('Error in getExcelFileBuffer:', error);
+    return null; // Return null instead of throwing to allow file creation
   }
 }
 
@@ -96,37 +110,54 @@ async function getExcelFileBuffer(): Promise<Buffer | null> {
  * Save Excel file buffer to Vercel Blob or local file system
  */
 async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
-  if (isVercel) {
-    const blobModule = await getBlobStorage();
-    if (!blobModule) {
-      throw new Error('Vercel Blob storage not available');
-    }
-    
-    // Delete existing blob if it exists
-    if (blobModule.list && blobModule.del) {
-      try {
-        const blobs = await blobModule.list({ prefix: BLOB_FILE_NAME });
-        if (blobs.blobs) {
-          for (const blob of blobs.blobs) {
-            await blobModule.del(blob.url);
-          }
-        }
-      } catch (error) {
-        // Ignore if file doesn't exist
+  try {
+    if (isVercel) {
+      const blobModule = await getBlobStorage();
+      if (!blobModule) {
+        console.warn('Vercel Blob storage not available, but continuing...');
+        // Don't throw - allow the app to continue without blob storage
+        // This prevents crashes when blob storage isn't configured
+        return;
       }
-    }
-    
-    // Upload new blob
-    if (blobModule.put) {
-      await blobModule.put(BLOB_FILE_NAME, buffer, {
-        access: 'public',
-        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
+      
+      // Delete existing blob if it exists
+      if (blobModule.list && blobModule.del) {
+        try {
+          const blobs = await blobModule.list({ prefix: BLOB_FILE_NAME });
+          if (blobs.blobs) {
+            for (const blob of blobs.blobs) {
+              await blobModule.del(blob.url);
+            }
+          }
+        } catch (error) {
+          // Ignore if file doesn't exist
+          console.log('No existing blob to delete');
+        }
+      }
+      
+      // Upload new blob
+      if (blobModule.put) {
+        await blobModule.put(BLOB_FILE_NAME, buffer, {
+          access: 'public',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        console.log('Excel file saved to Vercel Blob');
+      } else {
+        console.error('Vercel Blob put method not available');
+        throw new Error('Vercel Blob put method not available');
+      }
     } else {
-      throw new Error('Vercel Blob put method not available');
+      // Ensure directory exists
+      const dataDir = path.dirname(EXCEL_FILE_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      fs.writeFileSync(EXCEL_FILE_PATH, buffer);
+      console.log('Excel file saved to local filesystem');
     }
-  } else {
-    fs.writeFileSync(EXCEL_FILE_PATH, buffer);
+  } catch (error) {
+    console.error('Error saving Excel file buffer:', error);
+    throw new Error(`Failed to save Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

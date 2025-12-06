@@ -53,7 +53,10 @@ export async function getAllApplications(): Promise<Application[]> {
       return [dummyApp];
     } catch (recoveryError) {
       console.error('Recovery failed:', recoveryError);
-      throw new Error(`Failed to load applications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Return empty array instead of throwing to prevent function crash
+      // This allows the app to continue even if Excel file operations fail
+      console.warn('Returning empty array due to recovery failure');
+      return [];
     }
   }
 }
