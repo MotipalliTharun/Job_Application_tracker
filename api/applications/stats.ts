@@ -18,13 +18,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('GET /api/applications/stats called', {
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
     const stats = await getApplicationStats();
+    console.log('Stats calculated successfully:', { total: stats.total });
     res.json(stats);
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.status(500).json({
-      error: 'Failed to fetch statistics',
-      message: error instanceof Error ? error.message : 'Unknown error',
+    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
+    
+    // Return empty stats instead of 500 to prevent frontend crashes
+    res.json({
+      total: 0,
+      byStatus: {
+        TODO: 0,
+        APPLIED: 0,
+        INTERVIEW: 0,
+        OFFER: 0,
+        REJECTED: 0,
+        ARCHIVED: 0,
+      },
+      byPriority: {
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+      },
+      recentApplications: 0,
     });
   }
 }

@@ -89,7 +89,10 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
     if (isVercel) {
       const blobModule = await getBlobStorage();
       if (!blobModule) {
-        console.warn('Blob storage not available');
+        const errorMsg = 'Blob storage not available. Please set BLOB_READ_WRITE_TOKEN environment variable.';
+        console.error(errorMsg);
+        // Don't throw - allow app to continue without saving (data will be lost but app won't crash)
+        console.warn('Continuing without saving to Blob storage');
         return;
       }
       
@@ -97,23 +100,38 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
       if (blobModule.list && blobModule.del) {
         try {
           const blobs = await blobModule.list({ prefix: BLOB_FILE_NAME });
-          if (blobs.blobs) {
+          if (blobs.blobs && blobs.blobs.length > 0) {
             for (const blob of blobs.blobs) {
-              await blobModule.del(blob.url);
+              try {
+                await blobModule.del(blob.url);
+              } catch (delError) {
+                console.warn('Failed to delete existing blob:', delError);
+              }
             }
           }
         } catch (error) {
-          // Ignore if file doesn't exist
+          // Ignore if file doesn't exist or list fails
+          console.log('No existing blob to delete or list failed');
         }
       }
       
       // Upload new blob
       if (blobModule.put) {
-        await blobModule.put(BLOB_FILE_NAME, buffer, {
-          access: 'public',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        console.log('Excel file saved to Vercel Blob');
+        try {
+          await blobModule.put(BLOB_FILE_NAME, buffer, {
+            access: 'public',
+            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          console.log('Excel file saved to Vercel Blob successfully');
+        } catch (putError) {
+          console.error('Failed to upload blob:', putError);
+          throw new ExcelServiceError(
+            `Failed to upload to Blob storage: ${putError instanceof Error ? putError.message : 'Unknown error'}`,
+            putError instanceof Error ? putError : undefined
+          );
+        }
+      } else {
+        throw new ExcelServiceError('Blob module put method not available');
       }
     } else {
       const dataDir = path.dirname(EXCEL_FILE_PATH);
@@ -125,6 +143,12 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
     }
   } catch (error) {
     console.error('Error saving Excel file:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
     throw new ExcelServiceError(
       `Failed to save Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error instanceof Error ? error : undefined
@@ -136,34 +160,53 @@ async function saveExcelFileBuffer(buffer: Buffer): Promise<void> {
  * Ensure workbook exists and has correct structure
  */
 async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
-  const workbook = new ExcelJS.Workbook();
-  const fileBuffer = await getExcelFileBuffer();
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const fileBuffer = await getExcelFileBuffer();
 
-  if (fileBuffer && fileBuffer.length > 0) {
-    try {
-      await workbook.xlsx.load(fileBuffer as any);
-    } catch (error) {
-      console.warn('Excel file corrupted, creating new one:', error);
+    if (fileBuffer && fileBuffer.length > 0) {
+      try {
+        await workbook.xlsx.load(fileBuffer as any);
+        console.log('Excel file loaded successfully');
+      } catch (error) {
+        console.warn('Excel file corrupted or invalid, creating new one:', error);
+        // Continue to create new workbook
+      }
+    } else {
+      console.log('No existing Excel file found, creating new one');
     }
-  }
 
-  let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
-  if (!worksheet) {
-    worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
+    let worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
+    if (!worksheet) {
+      console.log('Creating new worksheet:', EXCEL_SHEET_NAME);
+      worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
+      worksheet.addRow([
+        'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
+        'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
+        'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
+      ]);
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+    }
+
+    return workbook;
+  } catch (error) {
+    console.error('Error in ensureWorkbook:', error);
+    // Return a new workbook as fallback
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(EXCEL_SHEET_NAME);
     worksheet.addRow([
       'id', 'url', 'linkTitle', 'company', 'roleTitle', 'location',
       'status', 'priority', 'notes', 'appliedDate', 'interviewDate',
       'offerDate', 'rejectedDate', 'createdAt', 'updatedAt'
     ]);
     worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
+    return workbook;
   }
-
-  return workbook;
 }
 
 /**
@@ -171,10 +214,16 @@ async function ensureWorkbook(): Promise<ExcelJS.Workbook> {
  */
 export async function loadApplications(): Promise<Application[]> {
   try {
+    console.log('Loading applications...', {
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
     const workbook = await ensureWorkbook();
     const worksheet = workbook.getWorksheet(EXCEL_SHEET_NAME);
     
     if (!worksheet || worksheet.rowCount <= 1) {
+      console.log('No worksheet or data found, returning empty array');
       return [];
     }
 
@@ -204,13 +253,20 @@ export async function loadApplications(): Promise<Application[]> {
       });
     }
 
+    console.log(`Successfully loaded ${applications.length} applications`);
     return applications;
   } catch (error) {
     console.error('Error loading applications:', error);
-    throw new ExcelServiceError(
-      `Failed to load applications: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      error instanceof Error ? error : undefined
-    );
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
+    // Don't throw - return empty array to allow app to continue
+    // The getAllApplications function will handle creating a dummy app
+    return [];
   }
 }
 

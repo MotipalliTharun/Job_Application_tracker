@@ -42,6 +42,12 @@ router.use((req, res, next) => {
 // GET /api/applications
 router.get('/', async (req, res) => {
   try {
+    console.log('GET /api/applications called', {
+      query: req.query,
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
     const { status, priority, search, startDate, endDate } = req.query;
     
     const filters = {
@@ -57,12 +63,15 @@ router.get('/', async (req, res) => {
     };
 
     const applications = await getAllApplications(Object.keys(filters).length > 0 ? filters : undefined);
+    console.log(`Returning ${applications.length} applications`);
     res.json(applications);
   } catch (error) {
     console.error('Error fetching applications:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
     res.status(500).json({
       error: 'Failed to fetch applications',
       message: error instanceof Error ? error.message : 'Unknown error',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined,
     });
   }
 });
@@ -199,13 +208,34 @@ router.delete('/:id/clear-link', async (req, res) => {
 // GET /api/applications/stats
 router.get('/stats', async (req, res) => {
   try {
+    console.log('GET /api/applications/stats called', {
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
     const stats = await getApplicationStats();
+    console.log('Stats calculated:', stats);
     res.json(stats);
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.status(500).json({
-      error: 'Failed to fetch statistics',
-      message: error instanceof Error ? error.message : 'Unknown error',
+    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
+    // Return empty stats instead of 500 error
+    res.json({
+      total: 0,
+      byStatus: {
+        TODO: 0,
+        APPLIED: 0,
+        INTERVIEW: 0,
+        OFFER: 0,
+        REJECTED: 0,
+        ARCHIVED: 0,
+      },
+      byPriority: {
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+      },
+      recentApplications: 0,
     });
   }
 });
@@ -242,15 +272,20 @@ router.post('/restore', upload.single('file'), async (req, res) => {
 
 // Express app setup
 const app = express();
+
+// Body parsing middleware (must be before routes)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.raw({ 
   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
   limit: '10mb' 
 }));
+
+// Mount router at root (paths are already reconstructed in handler)
 app.use('/', router);
 
-// 404 handler
+// 404 handler (must be after all routes)
 app.use((req, res) => {
+  console.warn('404 - Route not found:', req.method, req.url);
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.url} not found`,
@@ -269,9 +304,34 @@ app.use((req, res) => {
   });
 });
 
-// Vercel handler
+// Global error handler (must be last)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled Express error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: 'Internal server error',
+      message: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+});
+
+// Vercel handler - This handles /api/applications/* routes
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers immediately
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle OPTIONS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
+    // Vercel catch-all routes: /api/applications/[...path] means:
+    // - /api/applications -> pathSegments = []
+    // - /api/applications/stats -> pathSegments = ['stats']
+    // - /api/applications/123 -> pathSegments = ['123']
     const pathSegments = (req.query.path as string[]) || [];
     let pathArray: string[] = [];
     
@@ -281,20 +341,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pathArray = [pathSegments];
     }
     
+    // Reconstruct the path for Express router
     const path = pathArray.length > 0 ? '/' + pathArray.join('/') : '/';
     const originalUrl = req.url || '/';
     const queryString = originalUrl.includes('?') ? originalUrl.substring(originalUrl.indexOf('?')) : '';
     
+    // Set Express-compatible properties
     req.url = path + queryString;
     (req as any).path = path;
     (req as any).originalUrl = path + queryString;
     
-    return app(req, res);
+    console.log('Vercel handler:', {
+      method: req.method,
+      originalUrl,
+      path,
+      pathSegments: pathArray,
+      query: req.query,
+    });
+    
+    // Handle the request with Express app
+    return new Promise<void>((resolve) => {
+      app(req, res, (err?: any) => {
+        if (err) {
+          console.error('Express error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: 'Internal server error',
+              message: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+        resolve();
+      });
+    });
   } catch (error) {
     console.error('Handler error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('Error stack:', error instanceof Error ? error.stack : undefined);
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined,
+      });
+    }
   }
 }

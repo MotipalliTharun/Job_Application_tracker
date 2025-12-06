@@ -18,9 +18,15 @@ export async function getAllApplications(filters?: ApplicationFilters): Promise<
     
     // If no applications exist, create a dummy one
     if (applications.length === 0) {
-      const dummyApp = createDummyApplication();
-      await saveApplications([dummyApp]);
-      return [dummyApp];
+      try {
+        const dummyApp = createDummyApplication();
+        await saveApplications([dummyApp]);
+        return [dummyApp];
+      } catch (saveError) {
+        console.error('Failed to save dummy application:', saveError);
+        // Return the dummy app anyway, even if save failed
+        return [createDummyApplication()];
+      }
     }
     
     // Apply filters
@@ -54,13 +60,26 @@ export async function getAllApplications(filters?: ApplicationFilters): Promise<
     return applications;
   } catch (error) {
     console.error('Error in getAllApplications:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      isVercel: !!process.env.VERCEL,
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    
     // Try to recover by creating a dummy application
     try {
       const dummyApp = createDummyApplication();
-      await saveApplications([dummyApp]);
+      // Try to save, but don't fail if it doesn't work
+      try {
+        await saveApplications([dummyApp]);
+      } catch (saveError) {
+        console.warn('Could not save dummy application, returning in-memory version:', saveError);
+      }
       return [dummyApp];
     } catch (recoveryError) {
       console.error('Recovery failed:', recoveryError);
+      // Return empty array as last resort
       return [];
     }
   }
@@ -215,31 +234,53 @@ export async function clearLink(id: string): Promise<Application> {
  * Get application statistics
  */
 export async function getApplicationStats(): Promise<ApplicationStats> {
-  const applications = await loadApplications();
-  const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  
-  const recentApplications = applications.filter(
-    app => app.createdAt >= sevenDaysAgo
-  ).length;
+  try {
+    const applications = await getAllApplications(); // Use getAllApplications for error handling
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    
+    const recentApplications = applications.filter(
+      app => app.createdAt >= sevenDaysAgo
+    ).length;
 
-  return {
-    total: applications.length,
-    byStatus: {
-      TODO: applications.filter(a => a.status === 'TODO').length,
-      APPLIED: applications.filter(a => a.status === 'APPLIED').length,
-      INTERVIEW: applications.filter(a => a.status === 'INTERVIEW').length,
-      OFFER: applications.filter(a => a.status === 'OFFER').length,
-      REJECTED: applications.filter(a => a.status === 'REJECTED').length,
-      ARCHIVED: applications.filter(a => a.status === 'ARCHIVED').length,
-    },
-    byPriority: {
-      HIGH: applications.filter(a => a.priority === 'HIGH').length,
-      MEDIUM: applications.filter(a => a.priority === 'MEDIUM').length,
-      LOW: applications.filter(a => a.priority === 'LOW').length,
-    },
-    recentApplications,
-  };
+    return {
+      total: applications.length,
+      byStatus: {
+        TODO: applications.filter(a => a.status === 'TODO').length,
+        APPLIED: applications.filter(a => a.status === 'APPLIED').length,
+        INTERVIEW: applications.filter(a => a.status === 'INTERVIEW').length,
+        OFFER: applications.filter(a => a.status === 'OFFER').length,
+        REJECTED: applications.filter(a => a.status === 'REJECTED').length,
+        ARCHIVED: applications.filter(a => a.status === 'ARCHIVED').length,
+      },
+      byPriority: {
+        HIGH: applications.filter(a => a.priority === 'HIGH').length,
+        MEDIUM: applications.filter(a => a.priority === 'MEDIUM').length,
+        LOW: applications.filter(a => a.priority === 'LOW').length,
+      },
+      recentApplications,
+    };
+  } catch (error) {
+    console.error('Error in getApplicationStats:', error);
+    // Return empty stats instead of throwing
+    return {
+      total: 0,
+      byStatus: {
+        TODO: 0,
+        APPLIED: 0,
+        INTERVIEW: 0,
+        OFFER: 0,
+        REJECTED: 0,
+        ARCHIVED: 0,
+      },
+      byPriority: {
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+      },
+      recentApplications: 0,
+    };
+  }
 }
 
 /**

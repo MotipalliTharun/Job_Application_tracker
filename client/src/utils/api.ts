@@ -1,7 +1,12 @@
 /**
  * API Utility Functions
+ * 
+ * In production (Vercel): Uses relative paths /api/applications
+ * In development: Uses Vite proxy to localhost:4000 (configured in vite.config.ts)
  */
 
+// Use environment variable if set, otherwise use relative path for production
+// Vite proxy handles /api in development, Vercel handles it in production
 const API_BASE = import.meta.env.VITE_API_URL || '/api/applications';
 
 export async function apiRequest<T>(
