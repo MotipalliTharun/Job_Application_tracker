@@ -69,6 +69,11 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Test route to verify routing works
+router.get('/test', (req, res) => {
+  res.json({ message: 'Routing works!', path: req.url, method: req.method });
+});
+
 // POST /api/applications/links
 router.post('/links', async (req, res) => {
   try {
@@ -260,15 +265,35 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.raw({ type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', limit: '10mb' }));
 
+// Handle OPTIONS requests for CORS preflight
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(200);
+});
+
 // Mount router at root - Vercel routes /api/applications/* to this function
 app.use('/', router);
 
-// 404 handler for unmatched routes
+// 404/405 handler for unmatched routes (must be after all routes)
 app.use((req, res) => {
-  console.error('404 - Route not found:', req.method, req.url);
-  res.status(404).json({ 
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.url} not found`,
+  console.error('404/405 - Route not found or method not allowed:', {
+    method: req.method,
+    url: req.url,
+    path: (req as any).path,
+    originalUrl: req.originalUrl,
+    route: `${req.method} ${req.url}`
+  });
+  
+  // Return 405 if it's a method issue, 404 otherwise
+  const status = req.method && ['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method) ? 404 : 405;
+  
+  res.status(status).json({ 
+    error: status === 405 ? 'Method Not Allowed' : 'Not Found',
+    message: `Route ${req.method} ${req.url} not found or method not allowed`,
+    method: req.method,
+    url: req.url,
     availableRoutes: [
       'GET /',
       'POST /links',
@@ -288,25 +313,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Vercel catch-all: path segments are in req.query.path as array
     // For /api/applications, pathSegments will be []
     // For /api/applications/stats, pathSegments will be ['stats']
+    // For /api/applications/links, pathSegments will be ['links']
     // For /api/applications/123, pathSegments will be ['123']
     const pathSegments = (req.query.path as string[]) || [];
-    const path = pathSegments.length > 0 ? '/' + pathSegments.join('/') : '/';
+    
+    // Handle both array and string formats (Vercel might pass it differently)
+    let pathArray: string[] = [];
+    if (Array.isArray(pathSegments)) {
+      pathArray = pathSegments;
+    } else if (typeof pathSegments === 'string') {
+      pathArray = [pathSegments];
+    }
+    
+    const path = pathArray.length > 0 ? '/' + pathArray.join('/') : '/';
     
     // Reconstruct the URL for Express router
     const originalUrl = req.url || '/';
     const queryString = originalUrl.includes('?') ? originalUrl.substring(originalUrl.indexOf('?')) : '';
     
     // Set the URL for Express to match against routes
+    // Also set the path property that Express uses
     req.url = path + queryString;
+    (req as any).path = path;
     
     // Log the incoming request for debugging
-    console.log('API Request:', {
+    console.log('API Request Handler:', {
       method: req.method,
       originalUrl: originalUrl,
       reconstructedUrl: req.url,
-      pathSegments: pathSegments,
+      pathSegments: pathArray,
       path: path,
-      query: req.query
+      query: req.query,
+      hasBody: !!req.body,
+      contentType: req.headers['content-type']
     });
     
     // Handle the request with Express
