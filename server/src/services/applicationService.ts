@@ -10,11 +10,74 @@ import { ApplicationNotFoundError, InvalidApplicationDataError } from '../utils/
 import { DEFAULT_STATUS, DEFAULT_PRIORITY } from '../config/constants.js';
 
 /**
+ * Normalize URL for comparison (add protocol, lowercase, remove trailing slashes)
+ */
+function normalizeUrlForComparison(url: string): string {
+  if (!url || !url.trim()) return '';
+  
+  let normalized = url.trim();
+  
+  // Add protocol if missing
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+    normalized = `https://${normalized}`;
+  }
+  
+  // Convert to lowercase and remove trailing slashes
+  normalized = normalized.toLowerCase().replace(/\/+$/, '');
+  
+  return normalized;
+}
+
+/**
+ * Remove duplicate applications based on normalized URLs
+ */
+function deduplicateApplications(applications: Application[]): Application[] {
+  const seen = new Set<string>();
+  const deduplicated: Application[] = [];
+  let duplicatesRemoved = 0;
+
+  for (const app of applications) {
+    if (!app.url || !app.url.trim()) {
+      // Keep applications without URLs (they might be cleared links)
+      deduplicated.push(app);
+      continue;
+    }
+
+    const normalizedUrl = normalizeUrlForComparison(app.url);
+    
+    if (seen.has(normalizedUrl)) {
+      duplicatesRemoved++;
+      console.log('[DEDUPE] Removing duplicate application:', { id: app.id, url: app.url });
+      continue;
+    }
+    
+    seen.add(normalizedUrl);
+    deduplicated.push(app);
+  }
+
+  if (duplicatesRemoved > 0) {
+    console.log(`[DEDUPE] Removed ${duplicatesRemoved} duplicate application(s)`);
+  }
+
+  return deduplicated;
+}
+
+/**
  * Get all applications with optional filtering
  */
 export async function getAllApplications(filters?: ApplicationFilters): Promise<Application[]> {
   try {
     let applications = await loadApplications();
+    const originalCount = applications.length;
+    
+    // Remove duplicates based on normalized URLs
+    applications = deduplicateApplications(applications);
+    
+    // If duplicates were removed, save the cleaned list
+    if (applications.length < originalCount) {
+      console.log(`[DEDUPE] Saving deduplicated applications (removed ${originalCount - applications.length} duplicates)`);
+      await saveApplications(applications);
+    }
     
     // If no applications exist, create a dummy one
     if (applications.length === 0) {
@@ -126,15 +189,23 @@ export async function createApplicationsFromLinks(links: string[]): Promise<Appl
       continue;
     }
     
-    // Add protocol if missing
+    // Normalize URL for storage and comparison
     const originalUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `https://${url}`;
+    const normalizedUrl = normalizeUrlForComparison(url);
+    
+    if (normalizedUrl !== url) {
+      url = normalizedUrl;
       console.log('[CREATE LINKS] Normalized URL:', originalUrl, '->', url);
     }
-
-    // Skip if URL already exists
-    if (existingApps.some(app => app.url === url)) {
+    
+    // Skip if URL already exists (normalize existing URLs for comparison)
+    const isDuplicate = existingApps.some(app => {
+      if (!app.url || !app.url.trim()) return false;
+      const normalizedExisting = normalizeUrlForComparison(app.url);
+      return normalizedExisting === normalizedUrl;
+    });
+    
+    if (isDuplicate) {
       console.log('[CREATE LINKS] Skipping duplicate URL:', url);
       continue;
     }
